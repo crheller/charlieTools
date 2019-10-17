@@ -21,3 +21,8 @@ def compute_ellipse(x, y):
     e = e.T
 
     return e
+
+def get_square_asp(ax):
+    asp = np.diff(ax.get_xlim())[0] / np.diff(ax.get_ylim())[0]
+    return asp
+

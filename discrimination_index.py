@@ -91,7 +91,7 @@ def _compute_dprime(x, y):
 
     return dprime
 
-def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None):
+def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None, verbose=False):
     """
     For case when you've folded response into epoch dictionary with keys
     = epoch name and values = numpy arrays (reps x neuron x time).
@@ -105,13 +105,11 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None)
     """
 
     if d2 is not None:
-        # concatenate both dictionaries on trials by epochs
+        # d2 is the data to be used for defining the decoding axis
         if d1.keys() != d2.keys():
             raise ValueError("two dictionaries passed must have same epochs")
         else:
-            decoding_axis_data = dict.fromkeys(d1.keys())
-            for e in decoding_axis_data.keys():
-                decoding_axis_data[e] = np.concatenate((d1[e], d2[e]), axis=0)
+            decoding_axis_data = d2.copy()
     else:
         decoding_axis_data = d1.copy()
 
@@ -120,7 +118,7 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None)
     df_idx = [x[0][0]+'_'+str(x[0][1])+'_'+x[1][0]+'_'+str(x[1][1]) for x in combos]
 
     # Compute dprime for each comparison (pairs of stim_idxs) and save in df
-    DP = pd.DataFrame(index=df_idx, columns=['dprime', 'similarity', 'difference',
+    DP = pd.DataFrame(index=df_idx, columns=['dprime', 'similarity', 'difference', 'separation',
                         'category', 'pc1_var_explained', 'pc1_proj_on_dec',
                         'pc1_var_explained_all', 'pc1_proj_on_dec_all'])
     for i, combo in enumerate(combos):
@@ -220,7 +218,10 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None)
                 cat = 'sound_sound'
             DP.loc[df_idx[i], 'category'] = cat
 
-    return DP
+    if verbose:
+        return DP, d
+    else:
+        return DP
 
 def get_null_axis(x, y):
     '''

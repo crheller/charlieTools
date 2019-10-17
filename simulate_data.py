@@ -1,4 +1,63 @@
 import numpy as np
+import copy
+
+def generate_simulated_trials(r1, r2=None, keep_stats=[1, 2], N=500):
+    """
+    Generate simulated data for r1 dictionary that preserves either 
+    first order statistics, second order statistics, or both (keep_stats=[1], [2], [1, 2])
+
+    If r2 is not None, automatically use the first/second order stats of r2 (based on keep_stats)
+    to generate new r1 data.
+        For example generate_simulated_trials(r1, r2, keep_stats=[1], N=500) returns:
+            new r1 data with each neuron's mean/sd determined from r1 and 
+            covariance determined by cov(r2)
+    """
+
+    # get epoch list
+    ep = list(r1.keys())
+
+    # determine which data to use for calculation of first / second order statistics
+    if r2 is not None:
+        if keep_stats==[1]:
+            first_order = copy.deepcopy(r1) 
+            second_order = copy.deepcopy(r2)
+        if keep_stats==[1, 2]:
+            first_order = copy.deepcopy(r1)
+            second_order = copy.deepcopy(r1)
+        if keep_stats==[2]:
+            first_order = copy.deepcopy(r2)
+            second_order = copy.deepcopy(r1)
+    else:
+        first_order = copy.deepcopy(r1)
+        second_order = copy.deepcopy(r1)
+
+    # now, for each time bin, and neuron, compute statistics and simulate new data
+    r_new = dict.fromkeys(ep)
+    nbins = first_order[ep[0]].shape[-1]
+    nNeurons = first_order[ep[0]].shape[1]
+    for e in ep:
+        r_new[e] = np.zeros((N, nNeurons, nbins))
+        for b in range(0, nbins):
+            u = first_order[e][:, :, b].mean(axis=0)       # mean of all neurons over all trials from the first order dataset
+            cor = np.corrcoef(second_order[e][:, :, b].T)  # covariance of all neurons from the second order dataset
+            cor[np.isnan(cor)] = 0
+            var = np.var(first_order[e][:, :, b], axis=0)          # variance of single neurons in the first order dataset
+
+            # determine the new covariance matrix by scaling cor appropriately based on var.
+            # cov_new(i, j) = corr(i, j) * sqrt(var(i) * var(j))
+            # cov_new = cor * rootV
+
+            # sqrt of outerproduct of variances (rootV)
+            rootV = np.sqrt(np.matmul(var[:, np.newaxis], var[np.newaxis, :]))
+            cov_new = cor * rootV
+
+            # simulate new data with mean u and covariance cov_new
+            r_new[e][:, :, b] = np.random.multivariate_normal(u, cov_new, (N))
+
+    return r_new
+
+
+# ===================== Old functions ================================
 
 def generate_uncorrelated_trials(rec, epochs=None, N=500):
     """
