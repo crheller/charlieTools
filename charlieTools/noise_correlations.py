@@ -7,10 +7,30 @@ from itertools import permutations, combinations
 import scipy
 import nems.epoch as ep
 import scipy.fftpack as sfp
+import sys
+sys.path.append('/auto/users/hellerc/code/crh_tools/')
+import preprocessing as preproc
 
 import logging
 
 log = logging.getLogger(__name__)
+
+def z_score(rec, sig):
+    r = rec.copy()
+    epochs = np.unique([e for e in r.epochs.name if 'STIM_00' in e]).tolist()
+    zscore_dict = dict.fromkeys(epochs)
+    for k in epochs:
+        resp = r[sig].extract_epoch(k)
+        m = resp.mean(axis=0)
+        std = resp.std(axis=0)
+        zr = (resp - m) / std
+        zr = np.nan_to_num(zr)
+        zscore_dict[k] = zr
+
+    r[sig] = r['resp'].replace_epochs(zscore_dict)
+
+    return r
+
 
 def compute_noise_correlations(r, **options):
     """
@@ -49,6 +69,7 @@ def compute_noise_correlations(r, **options):
         verbose: Whether or not to return the residual response matrix
             default - False
     """
+    raise DeprecationWarning("Use new, simpler function: noise_correlations.compute_rsc")
     # parse options dictionary
     normalize = options.get('normalize', 'psth')
     evoked = options.get('evoked', False)
@@ -63,6 +84,7 @@ def compute_noise_correlations(r, **options):
     band = options.get('band', (0, r['resp'].fs / 2))
     window = options.get('window', None)
     verbose = options.get('verbose', False)
+    zscore = options.get('zscore', False)
 
     if evoked & spont:
         # can't set evoked and spont to True
@@ -92,7 +114,10 @@ def compute_noise_correlations(r, **options):
     residual = rec['resp']._modified_copy(residual_data)
     residual.name = 'residual'
     rec.add_signal(residual)
-    
+    if zscore:
+        log.info('z-scoring responses')
+        rec = z_score(rec, 'residual')
+
     # ============= fold the data over all stimuli ===========================
     folded_dict = {}
     folded_mask = {}
@@ -323,3 +348,52 @@ def get_rsc_pvalues(folded_resp, rsc_matrix, ep_mask=None, trial_len=None):
     pvals = counts/njacks
 
     return pvals
+
+
+def compute_rsc(d, chans=None):
+    """
+    Very simple, low level function to compute  noise correlations for a given 
+    spike count dictionary. If you want to do any preprocessing (i.e. remove first
+    order pupil effects, filter the data etc., this happens before building the 
+    spike count dictionary)
+
+    z-score responses in dictionary, and compute the noise correlation matrix. 
+    Return a dataframe with index: neuron pair, column: ['rsc', 'pval']
+    chans is list of unit names. If none, will just label the index with neuron indices
+    """
+    resp_dict = d.copy()
+    log.info("Compute z-scores of responses for noise correlation calculation")
+    resp_dict = preproc.zscore_per_stim(resp_dict, d2=resp_dict)
+
+    log.info("Concatenate responses to all stimuli")
+    eps = list(resp_dict.keys())
+    nCells = resp_dict[eps[0]].shape[1]
+    for i, k in enumerate(resp_dict.keys()):
+        if i == 0:
+            resp_matrix = np.transpose(resp_dict[k], [1, 0, -1]).reshape(nCells, -1)
+        else:
+            resp_matrix = np.concatenate((resp_matrix, np.transpose(resp_dict[k], [1, 0, -1]).reshape(nCells, -1)), axis=-1)
+
+    # Note, there will be Nan bins for some neurons
+    # (where there were no spikes, std is zero so zscore is nan)
+    # these will be excluded in the noise corr. calculation
+    combos = list(combinations(np.arange(0, nCells), 2))
+
+    log.info("Computing pairwise rsc values / pvals and saving in df")
+    if chans is None:
+        df_idx = ["{0}_{1}".format(i, j) for (i, j) in combos]
+    else:
+        df_idx = ["{0}_{1}".format(chans[i], chans[j]) for (i, j) in combos]
+    cols = ['rsc', 'pval']
+    df = pd.DataFrame(columns=cols, index=df_idx)
+    for i, pair in enumerate(combos):
+        n1 = pair[0]
+        n2 = pair[1]
+        idx = df_idx[i]
+
+        rr = np.isfinite(resp_matrix[n1, :] + resp_matrix[n2, :])
+        cc, pval = ss.pearsonr(resp_matrix[n1, rr], resp_matrix[n2, rr])
+
+        df.loc[idx, cols] = [cc, pval]
+
+    return df

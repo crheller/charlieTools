@@ -43,7 +43,8 @@ def generate_simulated_trials(r1, r2=None, keep_stats=[1, 2], N=500):
             cor[np.isnan(cor)] = 0
             var = np.var(first_order[e][:, :, b], axis=0)          # variance of single neurons in the first order dataset
 
-            # determine the new covariance matrix by scaling cor appropriately based on var.
+            # determine the new covariance matrix by scaling cor appropriately based on var
+            # For neuron pair i, j:
             # cov_new(i, j) = corr(i, j) * sqrt(var(i) * var(j))
             # cov_new = cor * rootV
 

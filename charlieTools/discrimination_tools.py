@@ -82,9 +82,9 @@ def get_epoch_combinations(d):
 
 def _compute_dprime(x, y):
 
-    if (x.mean() - y.mean()) == 0:
+    if np.isclose(x.mean() - y.mean(), 0, atol=0.01):
         dprime = 0
-    elif (np.var(x) + np.var(y)) == 0:
+    elif np.isclose(np.var(x) + np.var(y), 0, atol=0.01):
         dprime = np.nan #(x.mean() - y.mean())
     else:
         dprime = (x.mean() - y.mean()) / np.sqrt(0.5 * (np.var(x) + np.var(y)))
@@ -96,8 +96,7 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None,
     For case when you've folded response into epoch dictionary with keys
     = epoch name and values = numpy arrays (reps x neuron x time).
 
-    d2 is optional. If included, it's concatenated with d1
-    to find LDA/NULL axis (ex use case: state agnostic decoding axis)
+    d2 is optional. If included, it's used to compute the decoding axis.
 
     spont_bins is optional. If specified, refers to number of prestimulus bins
     of silence that precede each epoch. These will be labeled as such in the
@@ -294,3 +293,121 @@ def get_LDA_axis(x, y):
     discrimination_axis = eig_vecs[:, 0]
 
     return discrimination_axis
+
+
+def compute_discrimination_from_dict(d, norm=True):
+    """
+            distance1 = euclidean_dist(st1[i, :], psth1)
+            distance2 = euclidean_dist(st1[i, :], psth2)
+
+            if distance1 < distance2:
+                correct.append(True)
+            else:
+                correct.append(False)om_dicts` function.
+
+    For each pair of stim combinations in the dictionary (a stim combo is an individual epoch/bin),
+    compute the % of single trials correctly identified (based on their euc distance to each of the PSTHs)
+
+    d should have keys epochs and values ndarray of trials x neuron time
+    """
+
+    r = d.copy()
+
+    combos = get_epoch_combinations(r)
+
+    df_idx = [x[0][0]+'_'+str(x[0][1])+'_'+x[1][0]+'_'+str(x[1][1]) for x in combos]
+
+    # Compute performance for each comparison (pairs of stim_idxs) and save in df
+    # Also compute raw distance between the PSTHs
+    df = pd.DataFrame(index=df_idx, columns=['fraction_correct', 'raw_distance'])
+
+    for i, combo in enumerate(combos):
+        ep1 = combo[0][0]
+        seg1 = combo[0][1]
+        ep2 = combo[1][0]
+        seg2 =  combo[1][1]
+
+        st1 = r[ep1][:, :, seg1]
+        st2 = r[ep2][:, :, seg2]
+        psth1 = r[ep1][:, :, seg1].mean(axis=0)
+        psth2 = r[ep2][:, :, seg2].mean(axis=0)
+
+        total_trials = st1.shape[0] + st2.shape[0]
+        correct = []
+        for j in range(st1.shape[0]):
+            distance1 = euclidean_dist(st1[j, :], psth1)
+            distance2 = euclidean_dist(st1[j, :], psth2)
+
+            if distance1 < distance2:
+                correct.append(True)
+            else:
+                correct.append(False)
+
+        for j in range(st2.shape[0]):
+            distance1 = euclidean_dist(st2[j, :], psth1)
+            distance2 = euclidean_dist(st2[j, :], psth2)
+
+            if distance2 < distance1:
+                correct.append(True)
+            else:
+                correct.append(False)
+
+        fraction_correct = np.sum(correct) / total_trials
+        raw_distance = euclidean_dist(psth1, psth2)
+
+        df.loc[df_idx[i]]['fraction_correct'] = fraction_correct
+        df.loc[df_idx[i]]['raw_distance'] = raw_distance
+
+    return df
+
+def compute_pairwise_euclidean_distances(d):
+    """
+    For each unique bin, compute the mean/std of within sound Euc. distances
+        and the mean/std of across sound Euc. distances.
+    """
+
+    # get list of unique bins
+    e = list(d.keys())[0]
+    segs_per_epoch = d[e].shape[-1]
+
+    epochs = list(d.keys())
+    nEpochs = len(epochs)
+    segments = np.arange(0, segs_per_epoch).tolist()
+    repped_epochs = list(itertools.chain.from_iterable(itertools.repeat(x, segs_per_epoch) for x in epochs))
+    repped_segments = segments * nEpochs
+    stim_idx = [i for i in zip(repped_epochs, repped_segments)]
+    df_idx = [x[0]+'_'+str(x[1]) for x in stim_idx]
+    # create dataframe to hold results
+    df = pd.DataFrame(index=df_idx, columns=['within_mean', 'within_std', 'within_reps', 'within_pairs',
+                                'across_mean', 'across_std', 'across_reps', 'across_pairs'])
+
+    for i, stim in enumerate(stim_idx):
+        r = d[stim[0]][:, :, stim[1]]
+
+        # compute within stim metrics
+        nreps = r.shape[0]
+        combos = list(itertools.combinations(range(0, nreps), 2))
+        dist = []
+        for c in combos:
+            dist.append(euclidean_dist(r[c[0], :], r[c[1], :]))
+
+        df.loc[df_idx[i]]['within_mean'] = np.mean(dist)
+        df.loc[df_idx[i]]['within_std'] = np.std(dist)
+        df.loc[df_idx[i]]['within_reps'] = nreps
+        df.loc[df_idx[i]]['within_pairs'] = len(dist)
+
+        # compute across stim metrics
+        dist = []
+        for stim2 in stim_idx:
+            if (stim2[0] != stim[0]) | (stim2[1] != stim[1]):
+                r2 = d[stim2[0]][:, :, stim2[1]]
+                for rep in range(nreps):
+                    nreps2 = r2.shape[0]
+                    for rep2 in range(nreps2):
+                        dist.append(euclidean_dist(r[rep, :], r2[rep2, :]))
+        df.loc[df_idx[i]]['across_mean'] = np.mean(dist)
+        df.loc[df_idx[i]]['across_std'] = np.std(dist)
+        df.loc[df_idx[i]]['across_reps'] = nreps2
+        df.loc[df_idx[i]]['across_pairs'] = len(dist)
+
+    return df
