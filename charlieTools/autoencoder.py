@@ -1,5 +1,5 @@
 import numpy as np
-import preprocessing as preproc
+import charlieTools.preprocessing as preproc
 import scipy.optimize as opt
 from sklearn.decomposition import PCA
 

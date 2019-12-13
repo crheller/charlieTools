@@ -7,9 +7,7 @@ from itertools import permutations, combinations
 import scipy
 import nems.epoch as ep
 import scipy.fftpack as sfp
-import sys
-sys.path.append('/auto/users/hellerc/code/crh_tools/')
-import preprocessing as preproc
+import charlieTools.preprocessing as preproc
 
 import logging
 

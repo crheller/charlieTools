@@ -1,0 +1,5 @@
+charlieTools.egg-info/PKG-INFO
+charlieTools.egg-info/SOURCES.txt
+charlieTools.egg-info/dependency_links.txt
+charlieTools.egg-info/not-zip-safe
+charlieTools.egg-info/top_level.txt

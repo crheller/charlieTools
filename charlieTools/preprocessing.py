@@ -439,21 +439,30 @@ def generate_psth(rec):
     using replace epochs
     """
     r = rec.copy()
-    r_mask = r.apply_mask(reset_epochs=True).copy()
-
+    if 'mask' in r.signals.keys():
+        r_mask = r.apply_mask(reset_epochs=True).copy()
+    else:
+        r_mask = r.copy()
     # get epochs inside the masked data
-    ep = np.unique([e for e in r_mask.epochs.name if 'STIM_00' in e]).tolist()
+    ep = np.unique([e for e in r_mask.epochs.name if ('STIM' in e) | ('TAR_' in e)]).tolist()
 
     # for each epoch, compute psth for the masked data, rep it for the number of trials in all the data
     r_psth = dict.fromkeys(ep)
+    r_psth_sem = dict.fromkeys(ep)
     for e in ep:
         mask_psth = r_mask['resp'].extract_epoch(e).mean(axis=0)[np.newaxis, :, :]
         nreps = r['resp'].extract_epoch(e).shape[0]
         mask_psth = np.tile(mask_psth, [nreps, 1, 1])
         r_psth[e] = mask_psth
 
+        psth_sem = r_mask['resp'].extract_epoch(e).std(axis=0)[np.newaxis, :, :]
+        nCells = r['resp'].shape[0]
+        psth_sem /= np.tile(np.sqrt(nreps), [1, nCells, 1])
+        r_psth_sem[e] = np.tile(psth_sem, [nreps, 1, 1])
+
     # finally, replace epochs in the orignal recording with the masked psth
     r['psth'] = r['resp'].replace_epochs(r_psth)
+    r['psth_sem'] = r['resp'].replace_epochs(r_psth_sem)
 
     return r
 
@@ -563,3 +572,14 @@ def pca_reduce_dimensionality(dict_proj, npcs=1, dict_fit=None):
         d[e] = np.matmul(d[e].transpose([-1, 0, 1]).reshape(reps*bins, cells), pca.components_[:npcs, :].T).reshape(bins, reps, npcs).transpose([1, -1, 0])
 
     return d, np.sum(pca.explained_variance_ratio_[:npcs])
+
+def downsample_raster(psth, nbins):
+    chunks = psth.reshape(nbins, -1)
+    psth = np.array([x.sum() for x in chunks])
+    return psth
+
+def downsample_error(sem, nbins):
+    # error propogation for +/- operation
+    chunks = sem.reshape(nbins, -1)
+    sem = np.array([np.sqrt(sum(x**2)) for x in chunks])
+    return sem
