@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import preprocessing as preproc
+import charlieTools.preprocessing as preproc
 import copy
 
 def compute_ellipse(x, y):
@@ -29,7 +29,7 @@ def get_square_asp(ax):
     return asp
 
 
-def plot_raster_psth(rec, epochs, psth_fs=20, ax=None, ylim=None):
+def plot_raster_psth(rec, epochs, psth_fs=20, ax=None, ylim=None, raster=True):
     """
     Apply mask, extract epochs (all stims, ref only or tar only),
     make raster plot and psth.
@@ -82,31 +82,32 @@ def plot_raster_psth(rec, epochs, psth_fs=20, ax=None, ylim=None):
     else:
         ymin = ylim
 
-    epoch_offset = 0
-    on_off = False
-    for i, e in enumerate(ep):
-        try:
-            resp = r['resp'].extract_epoch(e).squeeze()
-            tr, ti = np.where(resp)
+    if raster:
+        epoch_offset = 0
+        on_off = False
+        for i, e in enumerate(ep):
             try:
-                ti = ti / r['resp'].fs
-                tr = (tr / 10) + ymin + epoch_offset
-                ax.plot(ti, tr, '|', markersize=1, color=colors[i])
-            except:
-                # no spikes
-                pass
-            epoch_offset = (resp.shape[0] / 10) + epoch_offset
+                resp = r['resp'].extract_epoch(e).squeeze()
+                tr, ti = np.where(resp)
+                try:
+                    ti = ti / r['resp'].fs
+                    tr = (tr / 10) + ymin + epoch_offset
+                    ax.plot(ti, tr, '|', markersize=1, color=colors[i])
+                except:
+                    # no spikes
+                    pass
+                epoch_offset = (resp.shape[0] / 10) + epoch_offset
 
-            if on_off == False:
-                # plot sound onset / offset
-                on_off = True
-                onset = r['resp'].extract_epoch('PreStimSilence').shape[-1] / psth_fs
-                offset = (resp.shape[-1] - r['resp'].extract_epoch('PostStimSilence').shape[-1]) / psth_fs
-                ax.axvline(onset, color='lightgrey', linestyle='--')
-                ax.axvline(offset, color='lightgrey', linestyle='--')
-        except:
-            # No epochs matching e. Pass
-            pass      
+                if on_off == False:
+                    # plot sound onset / offset
+                    on_off = True
+                    onset = r['resp'].extract_epoch('PreStimSilence').shape[-1] / r['resp'].fs
+                    offset = (resp.shape[-1] - r['resp'].extract_epoch('PostStimSilence').shape[-1]) / r['resp'].fs
+                    ax.axvline(onset, color='lightgrey', linestyle='--')
+                    ax.axvline(offset, color='lightgrey', linestyle='--')
+            except:
+                # No epochs matching e. Pass
+                pass      
 
     ax.legend(fontsize=6, loc='upper right', frameon=False)
     ax.set_ylabel('Spk count', fontsize=6)
@@ -126,9 +127,32 @@ def plot_raster_psth_perfile(rec, cellid, epochs=None, psth_fs=20):
     files = [f for f in r.epochs.name.unique() if 'FILE' in f]
 
     fig, ax = plt.subplots(1, len(files), sharey=True, figsize=(10, 3))
+    
     # first, figure out axis limits
-    ylim = 0
+    ylim = get_ylim(r, fs=psth_fs, epochs=epochs)
+    
+    # Now, plot
     for i, f in enumerate(files):
+        rt = copy.deepcopy(r)
+        rt = rt.and_mask([f])
+        rt = rt.apply_mask(reset_epochs=True)
+        plot_raster_psth(rt, epochs, psth_fs, ax=ax[i], ylim=ylim)
+        ax[i].set_title(f, fontsize=8)
+
+    fig.canvas.set_window_title(cellid)
+    fig.tight_layout()
+
+    return fig
+
+
+def get_ylim(rec, fs=20, epochs=None):
+    r = rec.copy()
+    if 'mask' in r.signals.keys():
+        r = r.apply_mask(reset_epochs=True)
+    files = [f for f in r.epochs.name.unique() if 'FILE' in f]
+    
+    ylim = 0
+    for f in files:
         rt = copy.deepcopy(r)
         rt = rt.and_mask([f])
         rt = rt.apply_mask(reset_epochs=True)
@@ -145,9 +169,9 @@ def plot_raster_psth_perfile(rec, cellid, epochs=None, psth_fs=20):
                 sem = rt['psth_sem'].extract_epoch(e)[0, 0, :].squeeze()
                 bins = len(psth)
                 time = bins / rt['resp'].fs
-                newbins = time * psth_fs
+                newbins = time * fs
                 if (newbins % 1) != 0:
-                    raise ValueError("Cannot bin trials of length {0} s at {1} Hz".format(time, psth_fs))
+                    raise ValueError("Cannot bin trials of length {0} s at {1} Hz".format(time, fs))
                 else:
                     newbins = int(newbins)
                 psth = preproc.downsample_raster(psth, newbins)
@@ -157,13 +181,5 @@ def plot_raster_psth_perfile(rec, cellid, epochs=None, psth_fs=20):
             except:
                 # No epochs matching e. Pass
                 pass
-    # Now, plot
-    for i, f in enumerate(files):
-        rt = copy.deepcopy(r)
-        rt = rt.and_mask([f])
-        rt = rt.apply_mask(reset_epochs=True)
-        plot_raster_psth(rt, ep, psth_fs, ax=ax[i], ylim=ylim)
-        ax[i].set_title(f, fontsize=8)
 
-    fig.canvas.set_window_title(cellid)
-    fig.tight_layout()
+    return ylim
