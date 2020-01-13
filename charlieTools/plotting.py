@@ -29,7 +29,7 @@ def get_square_asp(ax):
     return asp
 
 
-def plot_raster_psth(rec, epochs, psth_fs=20, ax=None, ylim=None, raster=True):
+def plot_raster_psth(rec, epochs, psth_fs=20, ax=None, ylim=None, raster=True, tr_max=None):
     """
     Apply mask, extract epochs (all stims, ref only or tar only),
     make raster plot and psth.
@@ -108,6 +108,10 @@ def plot_raster_psth(rec, epochs, psth_fs=20, ax=None, ylim=None, raster=True):
             except:
                 # No epochs matching e. Pass
                 pass      
+    else:
+        ax.set_ylim((0, ylim))
+    if tr_max is not None:
+        ax.set_ylim((0, (tr_max / 10) + ylim))
 
     ax.legend(fontsize=6, loc='upper right', frameon=False)
     ax.set_ylabel('Spk count', fontsize=6)
@@ -183,3 +187,28 @@ def get_ylim(rec, fs=20, epochs=None):
                 pass
 
     return ylim
+
+def get_tr_max(rec, epochs):
+    r = rec.copy()
+    if 'mask' in r.signals.keys():
+        r = r.apply_mask(reset_epochs=True)
+    files = [f for f in r.epochs.name.unique() if 'FILE' in f]
+    
+    ylim = 0
+    max_trials = 0
+    for f in files:
+        rt = copy.deepcopy(r)
+        rt = rt.and_mask([f])
+        rt = rt.apply_mask(reset_epochs=True)
+
+        tr=0
+        ep = [e for e in rt.epochs.name.unique() if e in epochs]
+        for e in ep:
+            trials = rt['resp'].extract_epoch(e).shape[0]
+            tr += trials
+
+        if tr > max_trials:
+            max_trials = tr
+
+
+    return max_trials

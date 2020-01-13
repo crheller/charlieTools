@@ -171,7 +171,7 @@ def regress_state(rec, state_sigs=['behavior', 'pupil'], regress=['pupil']):
     4) Add the corrected residuals back to the overall psth
     """
     r = copy.deepcopy(rec)
-    ep = np.unique([ep for ep in r.epochs.name if ('STIM' in ep) | ('TARGET' in ep)]).tolist()
+    ep = np.unique([ep for ep in r.epochs.name if ('STIM' in ep) | ('TAR_' in ep)]).tolist()
 
     r_st = r['resp'].extract_epochs(ep)
     state_signals = dict.fromkeys(state_sigs)
