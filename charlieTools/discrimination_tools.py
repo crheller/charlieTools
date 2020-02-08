@@ -7,10 +7,7 @@ from itertools import permutations
 import scipy.fftpack as fp
 import scipy.signal as ss
 import itertools
-import nems.xforms as xforms
-from nems.recording import Recording
 import os
-import nems.db as nd
 import logging
 import sys
 
@@ -101,6 +98,25 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None,
     spont_bins is optional. If specified, refers to number of prestimulus bins
     of silence that precede each epoch. These will be labeled as such in the
     output data frame
+
+    CRH update docstring 02/03/2020
+    returns df with the following fields per pair of stimuli:
+
+        d1 (or other) results:
+            dprime: discriminability 
+            category: specify if sound vs. sound comparison or sound vs. spont etc.
+            pc1_var_explained: variance explained of first PC of residuals for *d1*
+            pc1_proj_on_dec: cosine similarity between first PC of residuals for *d1* and decoding axis
+            stim1_pc1_proj_on_dec: same as ^ for only data from first stimulus in pair
+            stim2_pc1_proj_on_dec: "^" for second stimulus in pair
+            stim1_pc1_proj_on_u1: cosine similarity between pc1 of stim1 and mean of stim1
+            stim2_pc1_proj_on_u2: cosine similarity between pc1 of stim2 and mean of stim2
+
+        d2 (decoding data) stats (or d1 if d2 is None):
+            similarity: cosine similarity between pairs of stimuli in *d2* (if d2 is none, this is d1)
+            difference: normalized euc. distance between pairs of stimuli in *d2* (if d2 is none, this is d1)
+            pc1_var_explained_all: variance explained of first PC of residuals for *d2*
+            pc1_proj_on_dec_all: cosine similarity between first PC of residuals for *d2* and decoding axis
     """
 
     if d2 is not None:
@@ -117,9 +133,11 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None,
     df_idx = [x[0][0]+'_'+str(x[0][1])+'_'+x[1][0]+'_'+str(x[1][1]) for x in combos]
 
     # Compute dprime for each comparison (pairs of stim_idxs) and save in df
-    DP = pd.DataFrame(index=df_idx, columns=['dprime', 'similarity', 'difference', 'separation',
+    DP = pd.DataFrame(index=df_idx, columns=['dprime', 'similarity', 'difference',
                         'category', 'pc1_var_explained', 'pc1_proj_on_dec',
-                        'pc1_var_explained_all', 'pc1_proj_on_dec_all'])
+                        'pc1_var_explained_all', 'pc1_proj_on_dec_all',
+                        'stim1_pc1_proj_on_dec', 'stim2_pc1_proj_on_dec',
+                        'stim1_pc1_proj_on_u1', 'stim2_pc1_proj_on_u2'])
     for i, combo in enumerate(combos):
         ep1 = combo[0][0]
         seg1 = combo[0][1]
@@ -154,6 +172,8 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None,
         DP.loc[df_idx[i], 'pc1_proj_on_dec'] = pca_proj
 
         # do the same as above for all data (sort of a "baseline measure of correlation")
+        # this will only be different than above if decoding axis is defined over different data
+        # i.e. 'all' refers to the data used to compute decoding axis
         pca = PCA(n_components=1)
         residuals = np.concatenate((X_all - X_all.mean(axis=0), Y_all - Y_all.mean(axis=0)), axis=0)
         pca.fit(residuals)
@@ -163,6 +183,27 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None,
         pca_norm = pca.components_ / np.linalg.norm(pca.components_) # (just to double check)
         pca_proj = np.matmul(pca_norm, d)
         DP.loc[df_idx[i], 'pc1_proj_on_dec_all'] = pca_proj
+
+        # Finally, compute some stimulus specific stats. i.e. For this combo of two 
+        # stimuli, compute the first pc of each individually, and see how much it 
+        # 1) overlaps with decoding axis and 2) overlaps with its mean evoked axis
+        pca = PCA(n_components=1)
+        pca.fit(X_st)
+        pca_norm = pca.components_ / np.linalg.norm(pca.components_)
+        DP.loc[df_idx[i], 'stim1_pc1_proj_on_dec'] = np.matmul(pca_norm, d)
+
+        unorm1 = X_st.mean(axis=0)
+        unorm1 /= np.linalg.norm(unorm1)
+        DP.loc[df_idx[i], 'stim1_pc1_proj_on_u1'] = np.matmul(pca_norm, unorm1)
+
+        pca = PCA(n_components=1)
+        pca.fit(Y_st)
+        pca_norm = pca.components_ / np.linalg.norm(pca.components_)
+        DP.loc[df_idx[i], 'stim2_pc1_proj_on_dec'] = np.matmul(pca_norm, d)
+
+        unorm2 = Y_st.mean(axis=0)
+        unorm2 /= np.linalg.norm(unorm2)
+        DP.loc[df_idx[i], 'stim2_pc1_proj_on_u2'] = np.matmul(pca_norm, unorm2)
 
         # decide if should do X - Y or Y - X based on X_all and Y_all
         # over ALL data, force dprime to postivie. Then if sign switches
@@ -188,6 +229,8 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None,
         # save value
         DP.loc[df_idx[i], 'dprime'] = dprime
 
+        # the following two metrics are over the decoding data, not the 
+        # actual data being discriminated!
         # compute the similarity (cosine distance)
         uX = X_all.mean(axis=0)
         uY = Y_all.mean(axis=0)
@@ -216,6 +259,8 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None,
             else:
                 cat = 'sound_sound'
             DP.loc[df_idx[i], 'category'] = cat
+        else:
+            DP['category'] = 'sound_sound'
 
     if verbose:
         return DP, d

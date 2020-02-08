@@ -14,6 +14,7 @@ import nems.gui.editors as gui
 import io
 import os
 import logging
+import sys
 log = logging.getLogger(__name__)
 
 def fit_xforms_model(batch, cellid, modelname, save_analysis=False):
@@ -83,7 +84,7 @@ def fit_xforms_model(batch, cellid, modelname, save_analysis=False):
     ch.setFormatter(formatter)
     rootlogger = logging.getLogger()
     rootlogger.addHandler(ch)
-
+    
     ctx = {}
     for xfa in xfspec:
         ctx = xforms.evaluate_step(xfa, ctx)
@@ -129,4 +130,4 @@ def fit_xforms_model(batch, cellid, modelname, save_analysis=False):
 
 
 
-    return ctx
+    return xfspec, ctx

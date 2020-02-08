@@ -371,7 +371,6 @@ def compute_rsc(d, chans=None):
             resp_matrix = np.transpose(resp_dict[k], [1, 0, -1]).reshape(nCells, -1)
         else:
             resp_matrix = np.concatenate((resp_matrix, np.transpose(resp_dict[k], [1, 0, -1]).reshape(nCells, -1)), axis=-1)
-
     # Note, there will be Nan bins for some neurons
     # (where there were no spikes, std is zero so zscore is nan)
     # these will be excluded in the noise corr. calculation
@@ -390,8 +389,10 @@ def compute_rsc(d, chans=None):
         idx = df_idx[i]
 
         rr = np.isfinite(resp_matrix[n1, :] + resp_matrix[n2, :])
-        cc, pval = ss.pearsonr(resp_matrix[n1, rr], resp_matrix[n2, rr])
-
-        df.loc[idx, cols] = [cc, pval]
+        if rr.sum() >= 2:
+            cc, pval = ss.pearsonr(resp_matrix[n1, rr], resp_matrix[n2, rr])
+            df.loc[idx, cols] = [cc, pval]
+        else:
+            df.loc[idx, cols] = [np.nan, np.nan]
 
     return df

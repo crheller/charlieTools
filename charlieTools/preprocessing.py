@@ -228,7 +228,6 @@ def regress_state2(rec, state_sigs=['behavior', 'pupil'], regress=['pupil']):
     for each stimulus independently, fit the residuals of all the data. I think this is important
     in order to fully sample state.
     """
-
     r = rec.copy()
     r = generate_psth(r)
 
@@ -251,8 +250,7 @@ def regress_state2(rec, state_sigs=['behavior', 'pupil'], regress=['pupil']):
         if i == 0:
             X = state_signals[s]
         else:
-            X = np.concatenate((X, state_signals[s]), axis=0)
-
+            X = np.concatenate((X, state_signals[s]), axis=0).T
 
     r_new = r['resp']._data.copy()
     for n in range(r_new.shape[0]):
@@ -260,13 +258,13 @@ def regress_state2(rec, state_sigs=['behavior', 'pupil'], regress=['pupil']):
         y = r['resp']._data[n, :] - r['psth']._data[n, :]
         reg = LinearRegression()
 
-        X = X - X.mean(axis=-1)
-        X = X / X.std(axis=-1)
+        X = X - X.mean(axis=0)
+        X = X / X.std(axis=0)
 
-        reg.fit(X.T, y[:, np.newaxis])
+        reg.fit(X, y[:, np.newaxis])
 
         # compute predictions (of residuals)
-        pred = reg.predict(X.T)
+        pred = reg.predict(X)
 
         # compute new residual (regressing out state)
         new_residual = y - pred.T
@@ -533,7 +531,7 @@ def zscore_per_stim(d1, d2):
         reps = d[k].shape[0]
         m = np.tile(d_norm[k].mean(axis=0), [reps, 1, 1])
         std = np.tile(d_norm[k].std(axis=0), [reps, 1, 1])
-
+        std[std==0] = 1
         d[k] = d[k] - m
         d[k] = d[k] / std
 
