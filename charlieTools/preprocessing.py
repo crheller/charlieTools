@@ -159,7 +159,7 @@ def regress_pupil(rec):
 
     return r
 
-def regress_state(rec, state_sigs=['behavior', 'pupil'], regress=['pupil']):
+def regress_state(rec, state_sigs=['behavior', 'pupil'], regress=None):
     """
     Remove first order effects of given state variable(s). Idea is to model all state
     variables, for example, pupil and behavior, then just choose to remove the first order
@@ -170,9 +170,12 @@ def regress_state(rec, state_sigs=['behavior', 'pupil'], regress=['pupil']):
     3) Subtract off prediction computed using the coef(s) for the "regress" states
     4) Add the corrected residuals back to the overall psth
     """
+    if regress is not None:
+        log.info(DeprecationWarning('regress argument is deprecated. Always regress out all state signals'))
+
     r = copy.deepcopy(rec)
     ep = np.unique([ep for ep in r.epochs.name if ('STIM' in ep) | ('TAR_' in ep)]).tolist()
-
+    
     r_st = r['resp'].extract_epochs(ep)
     state_signals = dict.fromkeys(state_sigs)
     for s in state_sigs:
@@ -205,17 +208,25 @@ def regress_state(rec, state_sigs=['behavior', 'pupil'], regress=['pupil']):
                 y = r_st[e][:, n, b] - r_psth[e][:, n, b]
                 reg = LinearRegression()
 
+                # zscore if std of state signal not 0
                 X = X - X.mean(axis=0)
-                X = X / X.std(axis=0)
+                nonzero_sigs = np.argwhere(X.std(axis=0)!=0).squeeze()
+                if nonzero_sigs.shape != (0,):
+                    X = X[:, nonzero_sigs] / X[:, nonzero_sigs].std(axis=0)
+                    if len(X.shape) == 1:
+                        X = X[:, np.newaxis]
+                    reg.fit(X, y[:, np.newaxis])
 
-                reg.fit(X, y[:, np.newaxis])
-
-                # figure out regression coefficients
-                args = [True if r in regress else False for r in state_sigs]
-                model_coefs = reg.coef_[:, args]
-                y_pred = np.matmul(X[:, args], model_coefs.T) + reg.intercept_
-                y_new_residual = y - y_pred.squeeze()
-                r_new[e][:, n, b] = r_psth[e][:, n, b] + y_new_residual
+                    # figure out regression coefficients
+                    # modification CRH 02/14/2020, always use all state signals
+                    #args = [True if r in regress else False for r in state_sigs]
+                    model_coefs = reg.coef_
+                    y_pred = np.matmul(X, model_coefs.T) + reg.intercept_
+                    y_new_residual = y - y_pred.squeeze()
+                    r_new[e][:, n, b] = r_psth[e][:, n, b] + y_new_residual
+                else:
+                    # state signal has 0 std so nothing to regress out
+                    r_new[e][:, n, b] = r_psth[e][:, n, b] + y                
 
     r['resp'] = r['resp'].replace_epochs(r_new)
 
@@ -468,6 +479,9 @@ def create_ptd_masks(rec):
     """
     Create active behavior mask, passive mask, passive big pupil mask, and passive small pupil mask.
     return new recording with the four masks as signals.
+
+    Modified 2/20/2020, CRH. Now, define large pupil as pupil matched to active (w/in 2sd). 
+    Small pupil is the (smaller tail) leftover.
     """
 
     r = rec.copy()
@@ -477,7 +491,10 @@ def create_ptd_masks(rec):
     pass_mask = r.and_mask(['PASSIVE_EXPERIMENT'])['mask']
     miss_mask = r.and_mask(['MISS_TRIAL'])['mask']
 
-    options = {'state': 'big', 'method': 'median', 'collapse': True, 'epoch': ['REFERENCE', 'TARGET']}
+    # define the cutoff as two sd less than the mean of active pupil
+    cutoff = r['pupil']._data[act_mask._data].mean() - (2 * r['pupil']._data[act_mask._data].std())
+
+    options = {'state': 'big', 'method': 'user_def_value', 'cutoff': cutoff, 'collapse': True, 'epoch': ['REFERENCE', 'TARGET']}
     pass_big_mask = create_pupil_mask(r.and_mask(['PASSIVE_EXPERIMENT']), **options)['mask']
     options['state'] = 'small'
     pass_small_mask = create_pupil_mask(r.and_mask(['PASSIVE_EXPERIMENT']), **options)['mask']
@@ -557,6 +574,7 @@ def pca_reduce_dimensionality(dict_proj, npcs=1, dict_fit=None):
 
     # perform PCA
     pca = PCA(n_components=npcs)
+    log.info("PCA dict shape: {}".format(r.shape))
     pca = pca.fit(r.T)
 
     # normalize variance of components
@@ -570,6 +588,30 @@ def pca_reduce_dimensionality(dict_proj, npcs=1, dict_fit=None):
         d[e] = np.matmul(d[e].transpose([-1, 0, 1]).reshape(reps*bins, cells), pca.components_[:npcs, :].T).reshape(bins, reps, npcs).transpose([1, -1, 0])
 
     return d, np.sum(pca.explained_variance_ratio_[:npcs])
+
+
+def get_balanced_rep_counts(d1, d2):
+    """
+    For each epoch, in d1/d2, make sure number of presentations are
+    balanced between the two.
+    """
+    epochs = d1.keys()
+    new_dict = {}
+    for ep in epochs:
+        n1 = d1[ep].shape[0]
+        n2 = d2[ep].shape[0]
+        log.info("epoch: {0} \n d1 has {1} reps, d2 has {2} reps".format(ep, n1, n2))
+        if n1 > n2:
+            reps = np.random.choice(np.arange(0, n1), n2)
+            new_dict[ep] = np.concatenate((d1[ep][reps, :, :], d2[ep]), axis=0)
+        elif n2 > n1:
+            reps = np.random.choice(np.arange(0, n2), n1)
+            new_dict[ep] = np.concatenate((d1[ep], d2[ep][reps, :, :]), axis=0)
+        else:
+            new_dict[ep] = np.concatenate((d1[ep], d2[ep]), axis=0)
+
+    return new_dict
+
 
 def downsample_raster(psth, nbins):
     chunks = psth.reshape(nbins, -1)

@@ -88,7 +88,7 @@ def _compute_dprime(x, y):
 
     return dprime
 
-def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None, verbose=False):
+def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None, equal_tbin=False, verbose=False):
     """
     For case when you've folded response into epoch dictionary with keys
     = epoch name and values = numpy arrays (reps x neuron x time).
@@ -98,6 +98,9 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None,
     spont_bins is optional. If specified, refers to number of prestimulus bins
     of silence that precede each epoch. These will be labeled as such in the
     output data frame
+
+    equal_tbin. Optional. If True, only compare epochs of equivalent time bins. 
+        For example: compare REF_0 to TAR_0 but NOT REF_0 to TAR_1
 
     CRH update docstring 02/03/2020
     returns df with the following fields per pair of stimuli:
@@ -130,6 +133,9 @@ def compute_dprime_from_dicts(d1, d2=None, norm=True, LDA=True, spont_bins=None,
 
     # get all possible combinations of epochs/segments and calculate dprime for each
     combos = get_epoch_combinations(d1)
+    if equal_tbin:
+        combos = [c for c in combos if c[0][1] == c[1][1]] 
+    print(len(combos))
     df_idx = [x[0][0]+'_'+str(x[0][1])+'_'+x[1][0]+'_'+str(x[1][1]) for x in combos]
 
     # Compute dprime for each comparison (pairs of stim_idxs) and save in df

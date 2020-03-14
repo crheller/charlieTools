@@ -1,6 +1,7 @@
 '''
 Module w/ functions to fit an xforms model locally
 '''
+import numpy as np
 import nems
 import nems.db as nd
 import nems_lbhb.xform_wrappers as xfw
