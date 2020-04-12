@@ -1,8 +1,5 @@
 """
-decoding tools for natural sounds analysis. Most is based on 
-analysis shown in Rumyantsev et al., 2020, Nature
-
-CRH 04/10/2020
+decoding tools for natural sounds analysis
 """
 import numpy as np
 import pandas as pd
@@ -309,3 +306,4 @@ def _dprime_diag(A, B):
     wopt_diag = np.linalg.inv(usig_diag) @ u_vec.T
 
     return dp2, wopt_diag, evals, evecs, u_vec
+
