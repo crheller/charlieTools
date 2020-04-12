@@ -267,7 +267,7 @@ def _dprime(A, B):
     try:
         wopt = np.matmul(np.linalg.inv(usig), u_vec.T)
     except:
-        print('WARNING, Singular Covariance, dprime infinite, set to np.nan')
+        log.info('WARNING, Singular Covariance, dprime infinite, set to np.nan')
         return np.nan, np.nan, np.nan, np.nan, np.nan
 
     dp2 = np.matmul(u_vec, wopt)[0][0]
@@ -298,7 +298,7 @@ def _dprime_diag(A, B):
         denominator = u_vec @ np.linalg.inv(usig_diag) @ (usig @ np.linalg.inv(usig_diag)) @ u_vec.T
         denominator = denominator[0][0]
     except np.linalg.LinAlgError:
-        print('WARNING, Singular Covariance, dprime infinite, set to np.nan')
+        log.info('WARNING, Singular Covariance, dprime infinite, set to np.nan')
         return np.nan, np.nan, np.nan, np.nan, np.nan
 
     
