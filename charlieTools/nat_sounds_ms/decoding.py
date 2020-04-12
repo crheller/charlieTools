@@ -286,16 +286,21 @@ def _dprime_diag(A, B):
 
     # get numerator (optimal dprime)
     dp, _, evals, evecs, _ = _dprime(A, B)
-    numerator = dp ** 2
+    numerator = dp
 
     usig = 0.5 * (np.cov((A.T - A.mean(axis=-1)).T) + np.cov((B.T - B.mean(axis=-1)).T))
     u_vec = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]
 
     # get denominator
-    usig_diag = np.zeros(usig.shape)
-    np.fill_diagonal(usig_diag, np.diagonal(usig))
-    denominator = u_vec @ np.linalg.inv(usig_diag) @ (usig @ np.linalg.inv(usig_diag)) @ u_vec.T
-    denominator = denominator[0][0]
+    try:
+        usig_diag = np.zeros(usig.shape)
+        np.fill_diagonal(usig_diag, np.diagonal(usig))
+        denominator = u_vec @ np.linalg.inv(usig_diag) @ (usig @ np.linalg.inv(usig_diag)) @ u_vec.T
+        denominator = denominator[0][0]
+    except np.linalg.LinAlgError:
+        print('WARNING, Singular Covariance, dprime infinite, set to np.nan')
+        return np.nan, np.nan, np.nan, np.nan, np.nan
+
     
     #if denominator < 0:
     #    denominator = -denominator
