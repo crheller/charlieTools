@@ -58,15 +58,30 @@ def get_est_val_sets(X, njacks=10):
     all_idx = np.arange(0, nreps)
 
     # get list of all possible est / val rep idxs
-    test_idx = list(combinations(all_idx, n_test_reps))
-
+    # test_idx = list(combinations(all_idx, n_test_reps))
     # choose njacks random combos
-    test_idx = np.array(test_idx)[np.random.choice(range(0, len(test_idx)), njacks)]
-    train_idx = np.array([list(set(all_idx) - set(t)) for t in test_idx])
+    # test_idx = np.array(test_idx)[np.random.choice(range(0, len(test_idx)), njacks)]
+    # train_idx = np.array([list(set(all_idx) - set(t)) for t in test_idx])
+
+    # the above method takes way too long and can crash computers. There
+    # are generally just too many possible options. Instead do the following:
+    test_idx = []
+    train_idx = []
+    count = 0
+    while count <= njacks:
+        ti = list(np.random.choice(all_idx, n_test_reps, replace=False))
+        if ti not in test_idx:
+            tri = list(set(all_idx) - set(ti))
+        
+            test_idx.append(ti)
+            train_idx.append(tri)
+        
+            count += 1
+        else:
+            pass
 
     est = []
     val = []
-
     for jk in range(njacks):
         est.append(X[:, train_idx[jk], :])
         val.append(X[:, test_idx[jk], :])
