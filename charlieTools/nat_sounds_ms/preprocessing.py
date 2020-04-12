@@ -10,6 +10,7 @@ CRH 04/10/2020
 from itertools import combinations
 import numpy as np
 
+
 def dict_to_X(d):
     """
     Transform dictionary of spike counts (returned by nems.recording.extract_epochs)
