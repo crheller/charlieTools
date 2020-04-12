@@ -9,7 +9,7 @@ import os
 
 import logging
 
-log = logging.getLogger(__name__)
+log = logging.getLogger()
 
 # ================================= Results Object to hold analysis results ===============================================
 class DecodingResults():
