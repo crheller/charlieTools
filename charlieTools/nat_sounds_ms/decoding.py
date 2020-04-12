@@ -104,7 +104,7 @@ class DecodingResults():
         """
 
         def error_prop(x, axis=0):
-            return np.sqrt(np.sum(x**2, axis=axis)) / x.shape[0]
+            return np.sqrt(np.nansum(x**2, axis=axis)) / x.shape[0]
 
         # SPONT vs. SPONT
 
@@ -133,7 +133,7 @@ class DecodingResults():
             df = self.array_results[obj]
             sp_df = df.loc[pd.IndexSlice[self.spont_stimulus_pairs, :], :]
 
-            m = [x.mean(axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
+            m = [np.nanmean(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
             sem = [error_prop(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
             components = [arr[0] for arr in sp_df.groupby('n_components')]
             new_idx = pd.MultiIndex.from_tuples([pd.Categorical(('spont_spont', n_components)) 
@@ -179,7 +179,7 @@ class DecodingResults():
             for stim in unique_evoked_bins:
                 sp_ev = np.unique([c for c in self.spont_evoked_stimulus_pairs if stim in c])
                 sp_df = df.loc[pd.IndexSlice[sp_ev, :], :]
-                m = [x.mean(axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
+                m = [np.nanmean(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
                 sem = [error_prop(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
                 components = [arr[0] for arr in sp_df.groupby('n_components')]
                 new_idx = pd.MultiIndex.from_tuples([pd.Categorical(('spont_spont', n_components)) 
