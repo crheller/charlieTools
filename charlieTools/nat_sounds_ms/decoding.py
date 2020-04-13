@@ -85,8 +85,10 @@ class DecodingResults():
             results[obj] = pd.DataFrame(index=index, columns=['mean', 'sem'])
             for idx in index:
                 x = np.concatenate([np.expand_dims(arr, -1) for arr in _df[(_df.combo==idx[0]) & (_df.n_components==idx[1])][obj].values], -1)
-                mean = x.mean(axis=-1)
-                sem = x.std(axis=-1) / np.sqrt(x.shape[-1])
+                mean = np.nanmean(x, axis=-1)
+                nanslice = [0] * (x.ndim - 1) + [None]
+                nanslice = tuple(nanslice)
+                sem = np.nanstd(x, axis=-1) / np.sqrt(np.isfinite(x[nanslice].squeeze()).sum())
                 results[obj].loc[idx]['mean'] = mean
                 results[obj].loc[idx]['sem'] = sem
 
@@ -104,7 +106,13 @@ class DecodingResults():
         """
 
         def error_prop(x, axis=0):
-            return np.sqrt(np.nansum(x**2, axis=axis)) / x.shape[0]
+            nanslice = [0] * (x.ndim)
+            nanslice[axis] = None
+            nanslice = tuple(nanslice)
+            if type(x) is not np.ndarray:
+                return np.sqrt(x.pow(2).sum(axis=axis)) / np.isfinite(x.values[nanslice]).sum()
+            else:
+                return np.sqrt(np.nansum(x**2, axis=axis)) / np.isfinite(x[nanslice]).sum()
 
         # SPONT vs. SPONT
 
