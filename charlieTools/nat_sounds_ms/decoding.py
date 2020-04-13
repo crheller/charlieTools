@@ -105,19 +105,10 @@ class DecodingResults():
         object results dict / dfs. Propogate error using sem_new = np.sqrt(sem1**2 + sem2**2 + ...)
         """
 
-        def error_prop(x, axis=0):
-            nanslice = [0] * (x.ndim)
-            nanslice[axis] = None
-            nanslice = tuple(nanslice)
-            if type(x) is not np.ndarray:
-                return np.sqrt(x.pow(2).sum(axis=axis)) / np.isfinite(x.values[nanslice]).sum()
-            else:
-                return np.sqrt(np.nansum(x**2, axis=axis)) / np.isfinite(x[nanslice]).sum()
-
         # SPONT vs. SPONT
 
         # 1) deal with numeric results for spont spont
-        df = self.numeric_results
+        df = self.numeric_results.copy()
         mean_cols = [c for c in df.columns if '_sem' not in c]
         err_cols = [c for c in df.columns if '_sem' in c]
 
@@ -138,7 +129,7 @@ class DecodingResults():
 
         # 2) deal with array results for spont_spont
         for obj in self.object_keys:
-            df = self.array_results[obj]
+            df = self.array_results[obj].copy()
             sp_df = df.loc[pd.IndexSlice[self.spont_stimulus_pairs, :], :]
 
             m = [np.nanmean(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
@@ -158,7 +149,7 @@ class DecodingResults():
 
 
         # SPONT vs. EVOKED
-        df = self.numeric_results
+        df = self.numeric_results.copy()
         unique_evoked_bins = np.unique([[c.split('_')[0], c.split('_')[1]] for c in self.evoked_stimulus_pairs])
 
         # 1) deal with numeric results
@@ -190,7 +181,7 @@ class DecodingResults():
                 m = [np.nanmean(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
                 sem = [error_prop(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
                 components = [arr[0] for arr in sp_df.groupby('n_components')]
-                new_idx = pd.MultiIndex.from_tuples([pd.Categorical(('spont_spont', n_components)) 
+                new_idx = pd.MultiIndex.from_tuples([pd.Categorical(('spont_{}'.format(stim), n_components)) 
                                     for n_components in components], names=['combo', 'n_components'])
                 new_df = pd.DataFrame(index=new_idx, columns=['mean', 'sem'])
                 new_df['mean'] = m
@@ -235,6 +226,17 @@ class DecodingResults():
             data = pickle.load(handle)
         return data
 
+def error_prop(x, axis=0):
+    """
+    Error propagation function.
+    """
+    nanslice = [0] * (x.ndim)
+    nanslice[axis] = None
+    nanslice = tuple(nanslice)
+    if type(x) is not np.ndarray:
+        return np.sqrt(x.pow(2).sum(axis=axis)) / np.isfinite(x.values[nanslice]).sum()
+    else:
+        return np.sqrt(np.nansum(x**2, axis=axis)) / np.isfinite(x[nanslice]).sum()
 
 # =================================== Analysis functions to compute dprime =================================================
 
@@ -294,7 +296,7 @@ def _dprime_diag(A, B):
 
     # get numerator (optimal dprime)
     dp, _, evals, evecs, _ = _dprime(A, B)
-    numerator = dp
+    numerator = dp ** 2
 
     usig = 0.5 * (np.cov((A.T - A.mean(axis=-1)).T) + np.cov((B.T - B.mean(axis=-1)).T))
     u_vec = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]
