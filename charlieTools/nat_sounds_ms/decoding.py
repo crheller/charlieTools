@@ -84,13 +84,16 @@ class DecodingResults():
             _df = df[[obj]+categories]
             results[obj] = pd.DataFrame(index=index, columns=['mean', 'sem'])
             for idx in index:
-                x = np.concatenate([np.expand_dims(arr, -1) for arr in _df[(_df.combo==idx[0]) & (_df.n_components==idx[1])][obj].values], -1)
-                mean = np.nanmean(x, axis=-1)
-                nanslice = [0] * (x.ndim - 1) + [None]
-                nanslice = tuple(nanslice)
-                sem = np.nanstd(x, axis=-1) / np.sqrt(np.isfinite(x[nanslice].squeeze()).sum())
-                results[obj].loc[idx]['mean'] = mean
-                results[obj].loc[idx]['sem'] = sem
+                try:
+                    x = np.concatenate([np.expand_dims(arr, -1) for arr in _df[(_df.combo==idx[0]) & (_df.n_components==idx[1])][obj].values], -1)
+                    mean = np.nanmean(x, axis=-1)
+                    nanslice = [0] * (x.ndim - 1) + [None]
+                    nanslice = tuple(nanslice)
+                    sem = np.nanstd(x, axis=-1) / np.sqrt(np.isfinite(x[nanslice].squeeze()).sum())
+                    results[obj].loc[idx]['mean'] = mean
+                    results[obj].loc[idx]['sem'] = sem
+                except ValueError:
+                    log.info("Failed trying to concatenate object: {}".format(obj))
 
         return results
 
