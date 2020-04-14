@@ -313,7 +313,7 @@ def _dprime(A, B):
     """
     See Rumyantsev et. al 2020, Nature for nice derivation
     """
-    usig = 0.5 * (np.cov((A.T - A.mean(axis=-1)).T) + np.cov((B.T - B.mean(axis=-1)).T))
+    usig = 0.5 * (np.cov((A - A.mean(axis=-1, keepdims=True))) + np.cov((B - B.mean(axis=-1, keepdims=True))))
     u_vec = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]
 
     try:
@@ -328,8 +328,6 @@ def _dprime(A, B):
 
 
     dp2 = np.matmul(u_vec, wopt)[0][0]
-    #if dp2 < 0:
-    #    dp2 = -dp2
 
     evals, evecs = np.linalg.eig(usig)
 
@@ -338,21 +336,22 @@ def _dprime(A, B):
 
 def _dprime_diag(A, B):
     """
-    See Rumyantsev et. al 2020, Nature for nice derivation
+    See Rumyantsev et. al 2020, Nature  and Averbeck 2006, JNP for nice derivations.
+        Note typo in Rumyantsev though!
     """
-
-    # get numerator (optimal dprime)
-    dp, _, evals, evecs, _ = _dprime(A, B)
-    numerator = dp ** 2
-
-    usig = 0.5 * (np.cov((A.T - A.mean(axis=-1)).T) + np.cov((B.T - B.mean(axis=-1)).T))
+    usig = 0.5 * (np.cov((A - A.mean(axis=-1, keepdims=True))) + np.cov((B - B.mean(axis=-1, keepdims=True))))
     u_vec = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]
 
-    # get denominator
     try:
+        # get diagonal covariance matrix
         usig_diag = np.zeros(usig.shape)
         np.fill_diagonal(usig_diag, np.diagonal(usig))
-        denominator = u_vec @ np.linalg.inv(usig_diag) @ (usig @ np.linalg.inv(usig_diag)) @ u_vec.T
+
+        # compute numerator
+        numerator = (u_vec @ np.linalg.inv(usig_diag) @ u_vec.T) ** 2
+
+        # compute denominator
+        denominator = u_vec @ np.linalg.inv(usig_diag) @ usig @ np.linalg.inv(usig_diag) @ u_vec.T
         denominator = denominator[0][0]
     except np.linalg.LinAlgError:
         log.info('WARNING, Singular Covariance, dprime infinite, set to np.nan')
@@ -362,11 +361,9 @@ def _dprime_diag(A, B):
         u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
         return np.nan, np.nan, np.nan, np.nan, np.nan
 
-    
-    #if denominator < 0:
-    #    denominator = -denominator
-
     dp2 = numerator / denominator
+
+    evals, evecs = np.linalg.eig(usig)
 
     # best decoding axis ignoring correlations (reduces to direction of u_vec)
     wopt_diag = np.linalg.inv(usig_diag) @ u_vec.T
