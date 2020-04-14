@@ -324,7 +324,7 @@ def _dprime(A, B):
         evals_nan = np.nan * np.ones((A.shape[0], ))
         evecs_nan = np.nan * np.ones((A.shape[0], A.shape[0]))
         u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
-        return np.nan, np.nan, np.nan, np.nan, np.nan
+        return np.nan, wopt_nan, evals_nan, evecs_nan, u_vec_nan
 
 
     dp2 = np.matmul(u_vec, wopt)[0][0]
@@ -359,7 +359,7 @@ def _dprime_diag(A, B):
         evals_nan = np.nan * np.ones((A.shape[0], ))
         evecs_nan = np.nan * np.ones((A.shape[0], A.shape[0]))
         u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
-        return np.nan, np.nan, np.nan, np.nan, np.nan
+        return np.nan, wopt_nan, evals_nan, evecs_nan, u_vec_nan
 
     dp2 = numerator / denominator
 
