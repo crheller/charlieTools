@@ -132,8 +132,13 @@ class DecodingResults():
             df = self.array_results[obj].copy()
             sp_df = df.loc[pd.IndexSlice[self.spont_stimulus_pairs, :], :]
 
-            m = [np.nanmean(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
-            sem = [error_prop(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
+            if 'evecs' in obj:
+                m = [np.nanmean(reflect_eigenvectors(x), axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
+                sem = [error_prop(reflect_eigenvectors(x), axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
+            else:
+                m = [np.nanmean(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
+                sem = [error_prop(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
+            
             components = [arr[0] for arr in sp_df.groupby('n_components')]
             new_idx = pd.MultiIndex.from_tuples([pd.Categorical(('spont_spont', n_components)) 
                                 for n_components in components], names=['combo', 'n_components'])
@@ -178,8 +183,13 @@ class DecodingResults():
             for stim in unique_evoked_bins:
                 sp_ev = np.unique([c for c in self.spont_evoked_stimulus_pairs if stim in c])
                 sp_df = df.loc[pd.IndexSlice[sp_ev, :], :]
-                m = [np.nanmean(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
-                sem = [error_prop(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
+
+                if 'evecs' in obj:
+                    m = [np.nanmean(reflect_eigenvectors(x), axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
+                    sem = [error_prop(reflect_eigenvectors(x), axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
+                else:
+                    m = [np.nanmean(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
+                    sem = [error_prop(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
                 components = [arr[0] for arr in sp_df.groupby('n_components')]
                 new_idx = pd.MultiIndex.from_tuples([pd.Categorical(('spont_{}'.format(stim), n_components)) 
                                     for n_components in components], names=['combo', 'n_components'])
@@ -202,7 +212,7 @@ class DecodingResults():
         if name in self.numeric_keys:
             return [self.numeric_results.loc[pd.IndexSlice[stim_pair, n_components]][name],
                     self.numeric_results.loc[pd.IndexSlice[stim_pair, n_components]][name+'_sem']]
-        
+
         elif name in self.object_keys:
             return [self.array_results[name].loc[pd.IndexSlice[stim_pair, n_components]]['mean'], 
                     self.array_results[name].loc[pd.IndexSlice[stim_pair, n_components]]['sem']]
@@ -225,6 +235,35 @@ class DecodingResults():
         with open(fn, 'rb') as handle:
             data = pickle.load(handle)
         return data
+
+
+def reflect_eigenvectors(x):
+    """
+    Need a special function for taking the mean of eigenvectors because we care about direction here.
+    So, for example, the mean of [1, 0] and [-1, 0] should be [1, 0], not [0, 0].
+    In order to do this, force cosines of all vectors in x to be postivie relative to a random
+    vector in the space.
+
+    First dim of x must be the number of vectors to be averaged. 
+    Last dim of x is the indexer of eigenvectors. e.g. first eigenvector is x[0, :, 0]
+    """
+    # random reference vector
+    rv = np.random.normal(0, 1, x.shape[-1]) 
+    rv /= np.linalg.norm(rv)
+    xnew = x.copy()
+    for v in range(x.shape[-1]):
+        for i in range(x.shape[0]):
+            _x = x[0, :, v] / np.linalg.norm(x[0, :, v])
+            cos = np.dot(_x, rv)
+            if cos > 0:
+                pass
+            else:
+                _x = np.negative(_x)
+            
+            xnew[i, :, v] = _x
+  
+    return xnew
+
 
 def error_prop(x, axis=0):
     """
@@ -278,7 +317,12 @@ def _dprime(A, B):
         wopt = np.matmul(np.linalg.inv(usig), u_vec.T)
     except:
         log.info('WARNING, Singular Covariance, dprime infinite, set to np.nan')
+        wopt_nan = np.nan * np.ones((A.shape[0], 1))
+        evals_nan = np.nan * np.ones((A.shape[0], ))
+        evecs_nan = np.nan * np.ones((A.shape[0], A.shape[0]))
+        u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
         return np.nan, np.nan, np.nan, np.nan, np.nan
+
 
     dp2 = np.matmul(u_vec, wopt)[0][0]
     #if dp2 < 0:
@@ -309,6 +353,10 @@ def _dprime_diag(A, B):
         denominator = denominator[0][0]
     except np.linalg.LinAlgError:
         log.info('WARNING, Singular Covariance, dprime infinite, set to np.nan')
+        wopt_nan = np.nan * np.ones((A.shape[0], 1))
+        evals_nan = np.nan * np.ones((A.shape[0], ))
+        evecs_nan = np.nan * np.ones((A.shape[0], A.shape[0]))
+        u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
         return np.nan, np.nan, np.nan, np.nan, np.nan
 
     
