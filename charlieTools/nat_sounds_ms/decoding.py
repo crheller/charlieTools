@@ -85,11 +85,14 @@ class DecodingResults():
             results[obj] = pd.DataFrame(index=index, columns=['mean', 'sem'])
             for idx in index:
                 try:
-                    x = np.concatenate([np.expand_dims(arr, -1) for arr in _df[(_df.combo==idx[0]) & (_df.n_components==idx[1])][obj].values], -1)
-                    mean = np.nanmean(x, axis=-1)
-                    nanslice = [0] * (x.ndim - 1) + [None]
+                    x = np.concatenate([np.expand_dims(arr, 0) for arr in _df[(_df.combo==idx[0]) & (_df.n_components==idx[1])][obj].values], 0)
+                    if 'evecs' in obj:
+                        # reflect vectors so that there's no sign ambiguity when averaging
+                        x = reflect_eigenvectors(x)
+                    mean = np.nanmean(x, axis=0)
+                    nanslice = [slice(0, x.shape[0], 1)] + [0] * (x.ndim - 1)
                     nanslice = tuple(nanslice)
-                    sem = np.nanstd(x, axis=-1) / np.sqrt(np.isfinite(x[nanslice].squeeze()).sum())
+                    sem = np.nanstd(x, axis=0) / np.sqrt(np.isfinite(x[nanslice].squeeze()).sum())
                     results[obj].loc[idx]['mean'] = mean
                     results[obj].loc[idx]['sem'] = sem
                 except ValueError:
@@ -127,7 +130,7 @@ class DecodingResults():
 
         # add new spont results to df
         df = spont_spont.append(df)
-        self.numeric_results = df
+        self.numeric_results = df.copy()
 
 
         # 2) deal with array results for spont_spont
@@ -136,11 +139,11 @@ class DecodingResults():
             sp_df = df.loc[pd.IndexSlice[self.spont_stimulus_pairs, :], :]
 
             if 'evecs' in obj:
-                m = [np.nanmean(reflect_eigenvectors(x), axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
-                sem = [error_prop(reflect_eigenvectors(x), axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
+                m = [np.nanmean(reflect_eigenvectors(x), axis=0) for x in [np.stack([a for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
+                sem = [error_prop(x, axis=0) for x in [np.stack([a for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
             else:
-                m = [np.nanmean(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
-                sem = [error_prop(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
+                m = [np.nanmean(x, axis=0) for x in [np.stack([a for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
+                sem = [error_prop(x, axis=0) for x in [np.stack([a for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
             
             components = [arr[0] for arr in sp_df.groupby('n_components')]
             new_idx = pd.MultiIndex.from_tuples([pd.Categorical(('spont_spont', n_components)) 
@@ -151,7 +154,8 @@ class DecodingResults():
 
             df = df[~df.index.get_level_values('combo').isin(self.spont_stimulus_pairs)]
             df = new_df.append(df)
-            self.array_results[obj] = df
+            
+            self.array_results[obj] = df.copy()
 
         self.spont_stimulus_pairs = ['spont_spont']
 
@@ -178,7 +182,7 @@ class DecodingResults():
         df = df[~df.index.get_level_values('combo').isin(self.spont_evoked_stimulus_pairs)] 
 
         # save updated dataframe for numeric results
-        self.numeric_results = df
+        self.numeric_results = df.copy()
 
         # 2) deal with object results
         for obj in self.object_keys:
@@ -188,11 +192,11 @@ class DecodingResults():
                 sp_df = df.loc[pd.IndexSlice[sp_ev, :], :]
 
                 if 'evecs' in obj:
-                    m = [np.nanmean(reflect_eigenvectors(x), axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
-                    sem = [error_prop(reflect_eigenvectors(x), axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
+                    m = [np.nanmean(reflect_eigenvectors(x), axis=0) for x in [np.stack([a for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
+                    sem = [error_prop(x, axis=0) for x in [np.stack([a for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
                 else:
-                    m = [np.nanmean(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
-                    sem = [error_prop(x, axis=0) for x in [np.vstack([np.expand_dims(a, 0) for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
+                    m = [np.nanmean(x, axis=0) for x in [np.stack([a for a in arr[1]['mean'].values]) for arr in sp_df.groupby('n_components')]]
+                    sem = [error_prop(x, axis=0) for x in [np.stack([a for a in arr[1]['sem'].values]) for arr in sp_df.groupby('n_components')]]
                 components = [arr[0] for arr in sp_df.groupby('n_components')]
                 new_idx = pd.MultiIndex.from_tuples([pd.Categorical(('spont_{}'.format(stim), n_components)) 
                                     for n_components in components], names=['combo', 'n_components'])
@@ -200,7 +204,7 @@ class DecodingResults():
                 new_df['mean'] = m
                 new_df['sem'] = sem
 
-                df = df[~df.index.get_level_values('combo').isin(self.spont_stimulus_pairs)]
+                df = df[~df.index.get_level_values('combo').isin(self.spont_evoked_stimulus_pairs)]
                 df = new_df.append(df)
                 self.array_results[obj] = df
 
@@ -256,14 +260,18 @@ def reflect_eigenvectors(x):
     xnew = x.copy()
     for v in range(x.shape[-1]):
         for i in range(x.shape[0]):
-            _x = x[0, :, v] / np.linalg.norm(x[0, :, v])
-            cos = np.dot(_x, rv)
-            if cos > 0:
-                pass
-            else:
-                _x = np.negative(_x)
             
-            xnew[i, :, v] = _x
+            if np.any(np.isnan(x[i, :, v])):
+                xnew[i, :, v] = x[i, :, v]
+            else:
+                _x = x[i, :, v] / np.linalg.norm(x[i, :, v])
+                cos = np.dot(_x, rv)
+                if cos > 0:
+                    pass
+                else:
+                    _x = np.negative(_x)
+            
+                xnew[i, :, v] = _x
   
     return xnew
 
@@ -273,7 +281,7 @@ def error_prop(x, axis=0):
     Error propagation function.
     """
     nanslice = [0] * (x.ndim)
-    nanslice[axis] = None
+    nanslice[axis] = slice(0, x.shape[0], 1)
     nanslice = tuple(nanslice)
     if type(x) is not np.ndarray:
         return np.sqrt(x.pow(2).sum(axis=axis)) / np.isfinite(x.values[nanslice]).sum()
@@ -330,6 +338,10 @@ def _dprime(A, B):
     dp2 = np.matmul(u_vec, wopt)[0][0]
 
     evals, evecs = np.linalg.eig(usig)
+    # make sure evals / evecs are sorted
+    idx_sort = np.argsort(evals)[::-1]
+    evals = evals[idx_sort]
+    evecs = evecs[:, idx_sort]
 
     return dp2, wopt, evals, evecs, u_vec
 
@@ -364,6 +376,10 @@ def _dprime_diag(A, B):
     dp2 = numerator / denominator
 
     evals, evecs = np.linalg.eig(usig)
+    # make sure evals / evecs are sorted
+    idx_sort = np.argsort(evals)[::-1]
+    evals = evals[idx_sort]
+    evecs = evecs[:, idx_sort]
 
     # best decoding axis ignoring correlations (reduces to direction of u_vec)
     wopt_diag = np.linalg.inv(usig_diag) @ u_vec.T
