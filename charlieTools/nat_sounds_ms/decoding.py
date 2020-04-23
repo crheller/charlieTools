@@ -186,7 +186,7 @@ class DecodingResults():
 
         # 2) deal with object results
         for obj in self.object_keys:
-            df = self.array_results[obj]
+            df = self.array_results[obj].copy()
             for stim in unique_evoked_bins:
                 sp_ev = np.unique([c for c in self.spont_evoked_stimulus_pairs if stim in c])
                 sp_df = df.loc[pd.IndexSlice[sp_ev, :], :]
@@ -273,6 +273,18 @@ def reflect_eigenvectors(x):
                     cum_sum /= np.linalg.norm(cum_sum)
                     xnew[i, :, v] = np.negative(x[i, :, v])
   
+    return xnew
+
+
+def unit_vectors(x):
+    """
+    xdim = number components x nvectors
+    return matrix of same shape where each vector in range xdim.shape[-1] 
+    is norm 1
+    """
+    xnew = x.copy()
+    for v in range(x.shape[-1]):
+        xnew[:, v] = x[:, v] / np.linalg.norm(x[:, v])
     return xnew
 
 
