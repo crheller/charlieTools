@@ -255,23 +255,23 @@ def reflect_eigenvectors(x):
     Last dim of x is the indexer of eigenvectors. e.g. first eigenvector is x[0, :, 0]
     """
     # random reference vector
-    rv = np.random.normal(0, 1, x.shape[-1]) 
-    rv /= np.linalg.norm(rv)
     xnew = x.copy()
     for v in range(x.shape[-1]):
-        for i in range(x.shape[0]):
-            
+        cum_sum = x[0, :, v]
+        cum_sum /= np.linalg.norm(cum_sum)
+        for i in np.arange(1, x.shape[0]):   
             if np.any(np.isnan(x[i, :, v])):
                 xnew[i, :, v] = x[i, :, v]
             else:
-                _x = x[i, :, v] / np.linalg.norm(x[i, :, v])
-                cos = np.dot(_x, rv)
+                cos = cum_sum.dot(x[i, :, v])
                 if cos > 0:
-                    pass
+                    cum_sum += x[i, :, v]
+                    cum_sum /= np.linalg.norm(cum_sum)
+
                 else:
-                    _x = np.negative(_x)
-            
-                xnew[i, :, v] = _x
+                    cum_sum += np.negative(x[i, :, v])
+                    cum_sum /= np.linalg.norm(cum_sum)
+                    xnew[i, :, v] = np.negative(x[i, :, v])
   
     return xnew
 
@@ -290,7 +290,7 @@ def error_prop(x, axis=0):
 
 # =================================== Analysis functions to compute dprime =================================================
 
-def compute_dprime(A, B, diag=False):
+def compute_dprime(A, B, diag=False, wopt=None):
     """
     Compute discriminability between matrix A and matrix B
     where both are shape N neurons X N reps.
@@ -312,12 +312,12 @@ def compute_dprime(A, B, diag=False):
         dprime, wopt, evals, evecs, dU = _dprime_diag(A, B)
 
     else:
-        dprime, wopt, evals, evecs, dU = _dprime(A, B)
+        dprime, wopt, evals, evecs, dU = _dprime(A, B, wopt=wopt)
 
     return dprime, wopt, evals, evecs, dU 
 
 
-def _dprime(A, B):
+def _dprime(A, B, wopt=None):
     """
     See Rumyantsev et. al 2020, Nature for nice derivation
     """
@@ -325,7 +325,9 @@ def _dprime(A, B):
     u_vec = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]
 
     try:
-        wopt = np.matmul(np.linalg.inv(usig), u_vec.T)
+        inv = np.linalg.inv(usig)
+        if wopt is None:
+            wopt = np.matmul(inv, u_vec.T)
     except:
         log.info('WARNING, Singular Covariance, dprime infinite, set to np.nan')
         wopt_nan = np.nan * np.ones((A.shape[0], 1))
