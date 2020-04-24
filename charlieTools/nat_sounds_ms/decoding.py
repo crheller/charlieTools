@@ -217,15 +217,73 @@ class DecodingResults():
     def get_result(self, name, stim_pair, n_components):
 
         if name in self.numeric_keys:
-            return [self.numeric_results.loc[pd.IndexSlice[stim_pair, n_components]][name],
-                    self.numeric_results.loc[pd.IndexSlice[stim_pair, n_components]][name+'_sem']]
+            if stim_pair is None:
+                return [self.numeric_results.loc[pd.IndexSlice[:, n_components], name],
+                        self.numeric_results.loc[pd.IndexSlice[:, n_components], name+'_sem']]
+            elif n_components is None:
+                return [self.numeric_results.loc[pd.IndexSlice[stim_pair, :], name],
+                        self.numeric_results.loc[pd.IndexSlice[stim_pair, :], name+'_sem']]
+            else:
+                return [self.numeric_results.loc[pd.IndexSlice[stim_pair, n_components], name],
+                        self.numeric_results.loc[pd.IndexSlice[stim_pair, n_components], name+'_sem']]
 
         elif name in self.object_keys:
-            return [self.array_results[name].loc[pd.IndexSlice[stim_pair, n_components]]['mean'], 
-                    self.array_results[name].loc[pd.IndexSlice[stim_pair, n_components]]['sem']]
+            if stim_pair is None:
+                return [self.array_results[name].loc[pd.IndexSlice[:, n_components], 'mean'], 
+                        self.array_results[name].loc[pd.IndexSlice[:, n_components], 'sem']]
+            elif n_components is None:
+                return [self.array_results[name].loc[pd.IndexSlice[stim_pair, :], 'mean'], 
+                        self.array_results[name].loc[pd.IndexSlice[stim_pair, :], 'sem']]
+            else:
+                return [self.array_results[name].loc[pd.IndexSlice[stim_pair, n_components], 'mean'], 
+                        self.array_results[name].loc[pd.IndexSlice[stim_pair, n_components], 'sem']]
+
 
         else:
             raise ValueError("unknown result column") 
+
+    
+    def slice_array_results(self, name, stim_pair, n_components, idx=None):
+        """
+        Specific fn to slice into a given index of the array result. For example,
+        evecs_test might be a 2x2 array for each stim_pair, when n_components=2.
+        If we only want the first eigenvector, we'd say:
+            slice_array_results('evecs_test', None, 2, idx=[None, 0])
+        """
+        result = self.get_result(name, stim_pair, n_components)
+
+        if type(result[0]) is np.ndarray:
+            mean = self._slice_array(result[0], idx)
+            sem = self._slice_array(result[1], idx)
+
+        else:
+            mean = self._slice_series(result[0], idx)
+            sem = self._slice_series(result[1], idx)
+
+        return [mean, sem]
+
+    
+    def _slice_array(self, x, idx=None):
+        if idx is None:
+            return x
+        else:
+            idx = np.array(idx)
+            if np.any(idx == None):
+                none_index = np.argwhere(idx == None)
+                for ni in none_index[:, 0]:
+                    idx[ni] = slice(0, x.shape[ni])
+            idx = tuple(idx)
+            return x[idx]
+
+    def _slice_series(self, x, idx=None):
+        if idx is None:
+            return x
+
+        else:
+            newx = x.copy()
+            newcol = [self._slice_array(_x, idx) for _x in x.values]
+            newx[x.index] = pd.Series(newcol)
+            return newx
 
     
     def save_pickle(self, fn):
@@ -333,13 +391,27 @@ def _dprime(A, B, wopt=None):
     """
     See Rumyantsev et. al 2020, Nature for nice derivation
     """
-    usig = 0.5 * (np.cov((A - A.mean(axis=-1, keepdims=True))) + np.cov((B - B.mean(axis=-1, keepdims=True))))
-    u_vec = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]
 
+    usig = 0.5 * (np.cov((A - A.mean(axis=-1, keepdims=True))) + np.cov((B - B.mean(axis=-1, keepdims=True))))
+    u_vec = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]    
+
+    if wopt is not None:
+        wopt_train = wopt / np.linalg.norm(wopt)
+        A = A.T.dot(wopt_train).T
+        B = B.T.dot(wopt_train).T
+
+        usig_ = 0.5 * (np.cov((A - A.mean(axis=-1, keepdims=True))) + np.cov((B - B.mean(axis=-1, keepdims=True))))
+        u_vec_ = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]
+    
     try:
-        inv = np.linalg.inv(usig)
-        if wopt is None:
-            wopt = np.matmul(inv, u_vec.T)
+        if wopt is not None:
+            wopt = (1 / usig_) * u_vec_
+            dp2 = np.matmul(u_vec_, wopt)[0][0]
+        else:
+            inv = np.linalg.inv(usig)
+            wopt = inv @ u_vec.T
+            dp2 = np.matmul(u_vec, wopt)[0][0]
+
     except:
         log.info('WARNING, Singular Covariance, dprime infinite, set to np.nan')
         wopt_nan = np.nan * np.ones((A.shape[0], 1))
@@ -348,8 +420,6 @@ def _dprime(A, B, wopt=None):
         u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
         return np.nan, wopt_nan, evals_nan, evecs_nan, u_vec_nan
 
-
-    dp2 = np.matmul(u_vec, wopt)[0][0]
 
     evals, evecs = np.linalg.eig(usig)
     # make sure evals / evecs are sorted
@@ -387,7 +457,7 @@ def _dprime_diag(A, B):
         u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
         return np.nan, wopt_nan, evals_nan, evecs_nan, u_vec_nan
 
-    dp2 = numerator / denominator
+    dp2 = (numerator / denominator).squeeze()
 
     evals, evecs = np.linalg.eig(usig)
     # make sure evals / evecs are sorted
