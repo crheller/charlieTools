@@ -897,6 +897,12 @@ def _dprime(A, B, wopt=None):
             wopt = inv @ u_vec.T
             dp2 = np.matmul(u_vec, wopt)[0][0]
 
+            evals, evecs = np.linalg.eig(usig)
+            # make sure evals / evecs are sorted
+            idx_sort = np.argsort(evals)[::-1]
+            evals = evals[idx_sort]
+            evecs = evecs[:, idx_sort]
+
     except:
         log.info('WARNING, Singular Covariance, dprime infinite, set to np.nan')
         wopt_nan = np.nan * np.ones((A.shape[0], 1))
