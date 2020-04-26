@@ -9,7 +9,7 @@ CRH 04/10/2020
 
 from itertools import combinations
 import numpy as np
-
+import pandas as pd
 
 def dict_to_X(d):
     """
@@ -47,7 +47,7 @@ def fold_X(X_flat, nstim, nreps, nbins):
     return X_flat.reshape(X_flat.shape[0], nreps, nstim, nbins)
 
 
-def get_est_val_sets(X, njacks=10):
+def get_est_val_sets(X, pup_mask=None, njacks=10):
     """
     njacks 50-50 splits of the data matrix X.
 
@@ -57,16 +57,11 @@ def get_est_val_sets(X, njacks=10):
     n_test_reps = int(nreps / 2)
     all_idx = np.arange(0, nreps)
 
-    # get list of all possible est / val rep idxs
-    # test_idx = list(combinations(all_idx, n_test_reps))
-    # choose njacks random combos
-    # test_idx = np.array(test_idx)[np.random.choice(range(0, len(test_idx)), njacks)]
-    # train_idx = np.array([list(set(all_idx) - set(t)) for t in test_idx])
-
-    # the above method takes way too long and can crash computers. There
-    # are generally just too many possible options. Instead do the following:
+    est = []
+    val = []
+    p_est = []
+    p_val = []
     test_idx = []
-    train_idx = []
     count = 0
     while count <= njacks:
         ti = list(np.random.choice(all_idx, n_test_reps, replace=False))
@@ -74,19 +69,22 @@ def get_est_val_sets(X, njacks=10):
             tri = list(set(all_idx) - set(ti))
         
             test_idx.append(ti)
-            train_idx.append(tri)
+
+            est.append(X[:, ti, :])
+            val.append(X[:, tri, :])
+
+            if pup_mask is not None:
+                p_est.append(pup_mask[:, ti, :])
+                p_val.append(pup_mask[:, tri, :])
         
             count += 1
         else:
             pass
 
-    est = []
-    val = []
-    for jk in range(njacks):
-        est.append(X[:, train_idx[jk], :])
-        val.append(X[:, test_idx[jk], :])
-
-    return est, val
+    if pup_mask is not None:
+        return est, val, p_est, p_val
+    else:
+        return est, val
 
 
 def scale_est_val(est, val, mean=True, sd=True):
@@ -121,3 +119,54 @@ def scale_est_val(est, val, mean=True, sd=True):
             val_new[i] = val_new[i] / std
 
     return est_new, val_new
+
+
+def get_pupil_range(X_pup, pmask):
+    """
+    pup_mask is a mask of shape X_pup that splits each stim bin in 
+    X_pup in half based on the median pupil during those stim trials.
+    Goal here is to return a metric describing what fraction of total pupil variance 
+    is traversed during these trials.
+        e.g. might have a given stimulus that was only presented when pupil was very small
+            want to keep track of this because pupil-dep. results might be weaker for this 
+            stimulus.
+    """
+    max_pup = X_pup.max()
+    min_pup = X_pup.min()
+    full_range = max_pup - min_pup
+
+    df = pd.DataFrame()
+
+    # for each stim:
+    for stim in range(X_pup.shape[-1]):
+        # what fraction of full range does med(big) - med(small) span?
+        bp = X_pup[0, pmask[0, :, stim], stim]
+        sp = X_pup[0, ~pmask[0, :, stim], stim]
+        _range = np.median(bp) - np.median(sp)
+        _range /= full_range
+
+        # get min / max of each stim as fraction of total max
+        _max = bp.max() / max_pup
+        _min = sp.min() / max_pup
+
+        # get variance in big / small (is it roughly balanced?)
+        _bp_var = np.var(bp) / np.var(X_pup)
+        _sp_var = np.var(sp) / np.var(X_pup)
+
+        results = {'range': _range,
+                   'max': _max,
+                   'min': _min,
+                   'bp_var': _bp_var,
+                   'sp_var': _sp_var,
+                   'stim': stim}
+        
+        df = df.append([results])
+    # add overall results to df to compare across sites
+    results = {'range': full_range,
+               'max': max_pup,
+               'min': min_pup,
+               'bp_var': np.nan,
+               'sp_var': np.nan,
+               'stim': 'all'}
+    df = df.append([results])
+    return df
