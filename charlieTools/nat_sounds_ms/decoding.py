@@ -26,7 +26,7 @@ class DecodingResults():
     results for a given recording site easier.
     """
 
-    def __init__(self, df=None):
+    def __init__(self, df=None, pupil_range=None):
         """
         Init with the results data frame returned at the end of the dprime analysis
         Dprime analysis is pairwise, so each analysis returns results for many pairs of 
