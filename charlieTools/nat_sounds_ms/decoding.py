@@ -888,9 +888,9 @@ def _dprime(A, B, wopt=None):
                 evals = evals[idx_sort]
                 evecs = evecs[:, idx_sort]
             except:
-                wopt_nan = np.nan * np.ones((A.shape[0], 1))
-                evals_nan = np.nan * np.ones((A.shape[0], ))
-                evecs_nan = np.nan * np.ones((A.shape[0], A.shape[0]))
+                wopt = np.nan * np.ones((A.shape[0], 1))
+                evals = np.nan * np.ones((A.shape[0], ))
+                evecs = np.nan * np.ones((A.shape[0], A.shape[0]))
 
         else:
             inv = np.linalg.inv(usig)
