@@ -879,6 +879,19 @@ def _dprime(A, B, wopt=None):
         if wopt is not None:
             wopt = (1 / usig_) * u_vec_
             dp2 = np.matmul(u_vec_, wopt)[0][0]
+            try:
+                # if wopt is passed, could still compute dpirme but can't compute 
+                # evecs/ evals
+                evals, evecs = np.linalg.eig(usig)
+                # make sure evals / evecs are sorted
+                idx_sort = np.argsort(evals)[::-1]
+                evals = evals[idx_sort]
+                evecs = evecs[:, idx_sort]
+            except:
+                wopt_nan = np.nan * np.ones((A.shape[0], 1))
+                evals_nan = np.nan * np.ones((A.shape[0], ))
+                evecs_nan = np.nan * np.ones((A.shape[0], A.shape[0]))
+
         else:
             inv = np.linalg.inv(usig)
             wopt = inv @ u_vec.T
@@ -891,13 +904,6 @@ def _dprime(A, B, wopt=None):
         evecs_nan = np.nan * np.ones((A.shape[0], A.shape[0]))
         u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
         return np.nan, wopt_nan, evals_nan, evecs_nan, u_vec_nan
-
-
-    evals, evecs = np.linalg.eig(usig)
-    # make sure evals / evecs are sorted
-    idx_sort = np.argsort(evals)[::-1]
-    evals = evals[idx_sort]
-    evecs = evecs[:, idx_sort]
 
     return dp2, wopt, evals, evecs, u_vec
 
