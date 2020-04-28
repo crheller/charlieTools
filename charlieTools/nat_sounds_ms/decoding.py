@@ -14,6 +14,8 @@ import nems_lbhb.baphy as nb
 
 import charlieTools.nat_sounds_ms.preprocessing as nat_preproc
 import charlieTools.nat_sounds_ms.dim_reduction as dr
+import charlieTools.preprocessing as preproc
+import charlieTools.simulate_data as simulate
 
 import logging
 
@@ -956,7 +958,7 @@ def _dprime_diag(A, B):
 
 
 # ================================= Data Loading Utils ========================================
-def load_site(site, batch):
+def load_site(site, batch, sim_first_order=False, sim_second_order=False, regress_pupil=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
@@ -980,15 +982,24 @@ def load_site(site, batch):
     else:
         epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
     rec = rec.and_mask(epochs)
+
+    # regress out pupil, if specified
+    if regress_pupil:
+        log.info('Removing first order pupil')
+        rec = preproc.regress_state(rec, state_sigs=['pupil'])
+
     resp_dict = rec['resp'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
     spont_signal = rec['resp'].epoch_to_signal('PreStimSilence')
     sp_dict = spont_signal.extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
     pup_dict = rec['pupil'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
 
+
     # create response matrix, X
     X = nat_preproc.dict_to_X(resp_dict)
     X_sp = nat_preproc.dict_to_X(sp_dict)
     X_pup = nat_preproc.dict_to_X(pup_dict)
+
+    # TODO: simulate data, if specified
 
     return X, X_sp, X_pup
 
