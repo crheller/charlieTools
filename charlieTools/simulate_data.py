@@ -11,10 +11,10 @@ def generate_simulated_trials(r1, r2=None, keep_stats=[1, 2], N=500):
         For example generate_simulated_trials(r1, r2, keep_stats=[1], N=500) returns:
             new r1 data with each neuron's mean/sd determined from r1 and 
             covariance determined by cov(r2)
-    """
 
-    # get epoch list
-    ep = list(r1.keys())
+    Note - can also pass array type for r1/r2. Should be shape:
+        neurons x reps x epochs x bins
+    """
 
     # determine which data to use for calculation of first / second order statistics
     if r2 is not None:
@@ -31,29 +31,58 @@ def generate_simulated_trials(r1, r2=None, keep_stats=[1, 2], N=500):
         first_order = copy.deepcopy(r1)
         second_order = copy.deepcopy(r1)
 
-    # now, for each time bin, and neuron, compute statistics and simulate new data
-    r_new = dict.fromkeys(ep)
-    nbins = first_order[ep[0]].shape[-1]
-    nNeurons = first_order[ep[0]].shape[1]
-    for e in ep:
-        r_new[e] = np.zeros((N, nNeurons, nbins))
-        for b in range(0, nbins):
-            u = first_order[e][:, :, b].mean(axis=0)       # mean of all neurons over all trials from the first order dataset
-            cor = np.corrcoef(second_order[e][:, :, b].T)  # covariance of all neurons from the second order dataset
-            cor[np.isnan(cor)] = 0
-            var = np.var(first_order[e][:, :, b], axis=0)          # variance of single neurons in the first order dataset
+    if type(r1) is dict:
+        # get epoch list
+        ep = list(r1.keys())
+        # now, for each time bin, and neuron, compute statistics and simulate new data
+        r_new = dict.fromkeys(ep)
+        nbins = first_order[ep[0]].shape[-1]
+        nNeurons = first_order[ep[0]].shape[1]
+        for e in ep:
+            r_new[e] = np.zeros((N, nNeurons, nbins))
+            for b in range(0, nbins):
+                u = first_order[e][:, :, b].mean(axis=0)       # mean of all neurons over all trials from the first order dataset
+                cor = np.corrcoef(second_order[e][:, :, b].T)  # covariance of all neurons from the second order dataset
+                cor[np.isnan(cor)] = 0
+                var = np.var(first_order[e][:, :, b], axis=0)          # variance of single neurons in the first order dataset
 
-            # determine the new covariance matrix by scaling cor appropriately based on var
-            # For neuron pair i, j:
-            # cov_new(i, j) = corr(i, j) * sqrt(var(i) * var(j))
-            # cov_new = cor * rootV
+                # determine the new covariance matrix by scaling cor appropriately based on var
+                # For neuron pair i, j:
+                # cov_new(i, j) = corr(i, j) * sqrt(var(i) * var(j))
+                # cov_new = cor * rootV
 
-            # sqrt of outerproduct of variances (rootV)
-            rootV = np.sqrt(np.matmul(var[:, np.newaxis], var[np.newaxis, :]))
-            cov_new = cor * rootV
+                # sqrt of outerproduct of variances (rootV)
+                rootV = np.sqrt(np.matmul(var[:, np.newaxis], var[np.newaxis, :]))
+                cov_new = cor * rootV
 
-            # simulate new data with mean u and covariance cov_new
-            r_new[e][:, :, b] = np.random.multivariate_normal(u, cov_new, (N))
+                # simulate new data with mean u and covariance cov_new
+                r_new[e][:, :, b] = np.random.multivariate_normal(u, cov_new, (N))
+    elif type(r1) is np.ndarray:
+        nepochs = first_order.shape[2]
+        nbins = first_order.shape[3]
+        nNeurons = first_order.shape[0]
+        r_new = np.zeros((nNeurons, N, nepochs, nbins))
+        for e in range(r1.shape[2]):
+            for b in range(r1.shape[-1]):
+                u = first_order[:, :, e, b].mean(axis=1)       # mean of all neurons over all trials from the first order dataset
+                cor = np.corrcoef(second_order[:, :, e, b])  # covariance of all neurons from the second order dataset
+                cor[np.isnan(cor)] = 0
+                var = np.var(first_order[:, :, e, b], axis=1, ddof=1)          # variance of single neurons in the first order dataset
+
+                # determine the new covariance matrix by scaling cor appropriately based on var
+                # For neuron pair i, j:
+                # cov_new(i, j) = corr(i, j) * sqrt(var(i) * var(j))
+                # cov_new = cor * rootV
+
+                # sqrt of outerproduct of variances (rootV)
+                rootV = np.sqrt(np.matmul(var[:, np.newaxis], var[np.newaxis, :]))
+                cov_new = cor * rootV
+
+                # simulate new data with mean u and covariance cov_new
+                r_new[:, :, e, b] = np.random.multivariate_normal(u, cov_new, (N)).T
+
+    else:
+        raise TypeError("Unexpected input datatype")
 
     return r_new
 

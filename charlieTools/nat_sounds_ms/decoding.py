@@ -16,6 +16,7 @@ import charlieTools.nat_sounds_ms.preprocessing as nat_preproc
 import charlieTools.nat_sounds_ms.dim_reduction as dr
 import charlieTools.preprocessing as preproc
 import charlieTools.simulate_data as simulate
+import charlieTools.plotting as cplt
 
 import logging
 
@@ -993,18 +994,63 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, regres
     sp_dict = spont_signal.extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
     pup_dict = rec['pupil'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
 
-
     # create response matrix, X
     X = nat_preproc.dict_to_X(resp_dict)
     X_sp = nat_preproc.dict_to_X(sp_dict)
     X_pup = nat_preproc.dict_to_X(pup_dict)
 
-    # TODO: simulate data, if specified
+    # make pupil mask
+    reps = X_pup.shape[1]
+    epochs = X_pup.shape[2]
+    bins = X_pup.shape[3]
+    X_pup = X_pup.reshape(1, reps, epochs * bins)
+    pup_mask = X_pup >= np.tile(np.median(X_pup, axis=1), [1, X_pup.shape[1], 1])
+    X_pup = X_pup.reshape(1, reps, epochs, bins)
+    pup_mask = pup_mask.reshape(1, reps, epochs, bins)
 
-    return X, X_sp, X_pup
+    # simulate data, if specified
+    if sim_first_order:
+        log.info("Simulating only first order changes between large and small pupil")
+        # simulate first order difference only between large/small pupil
+        # fix second order stats to the overall data
+        xtemp = X.reshape(X.shape[0], reps, epochs * bins)
+        pmasktemp = pup_mask.reshape(1, reps, epochs * bins)
+        X_big = np.stack([xtemp[:, pmasktemp[0, :, i], i] for i in range(epochs * bins)], axis=-1)
+        X_big = X_big.reshape(-1, X_big.shape[1], epochs, bins)
+        X_small = np.stack([xtemp[:, ~pmasktemp[0, :, i], i] for i in range(epochs * bins)], axis=-1)
+        X_small = X_small.reshape(-1, X_small.shape[1], epochs, bins)
+
+        # simulate
+        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[2])
+        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[2])
+    
+        X = np.concatenate((X_big_sim, X_small_sim), axis=1)
+        p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
+        pup_mask = np.concatenate((p_mask, ~p_mask), axis=1)
+
+    elif sim_second_order:
+        log.info("simulating only second order change between large and small pupil")
+        # simulate first order difference only between large/small pupil
+        # fix second order stats to the overall data
+        xtemp = X.reshape(X.shape[0], reps, epochs * bins)
+        pmasktemp = pup_mask.reshape(1, reps, epochs * bins)
+        X_big = np.stack([xtemp[:, pmasktemp[0, :, i], i] for i in range(epochs * bins)], axis=-1)
+        X_big = X_big.reshape(-1, X_big.shape[1], epochs, bins)
+        X_small = np.stack([xtemp[:, ~pmasktemp[0, :, i], i] for i in range(epochs * bins)], axis=-1)
+        X_small = X_small.reshape(-1, X_small.shape[1], epochs, bins)
+
+        # simulate
+        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[2])
+        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[2])
+    
+        X = np.concatenate((X_big_sim, X_small_sim), axis=1)
+        p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
+        pup_mask = np.concatenate((p_mask, ~p_mask), axis=1)
+
+    return X, X_sp, X_pup, pup_mask
 
 # ================================= Plotting Utilities =========================================
-def plot_pair(est, val, nreps_train, nreps_test, train_pmask=None, test_pmask=None):
+def plot_pair(est, val, nreps_train, nreps_test, train_pmask=None, test_pmask=None, el_only=False):
     
     # unfold data
     if train_pmask is None:
@@ -1044,10 +1090,22 @@ def plot_pair(est, val, nreps_train, nreps_test, train_pmask=None, test_pmask=No
         ax[0].scatter(train[0, :, 0], train[1, :, 0], edgecolor='white', color='r', label='A')
         ax[0].scatter(train[0, :, 1], train[1, :, 1], edgecolor='white', color='b', label='B')
     else:
-        ax[0].scatter(Atrain_bp[0, :], Atrain_bp[1, :], color='r', label='A, big pup')
-        ax[0].scatter(Btrain_bp[0, :], Btrain_bp[1, :], color='b', label='B, big pup')
-        ax[0].scatter(Atrain_sp[0, :], Atrain_sp[1, :], facecolor='none', color='r', label='A, sm. pup')
-        ax[0].scatter(Btrain_sp[0, :], Btrain_sp[1, :], facecolor='none', color='b', label='B, sm. pup')
+        if el_only:
+            e = cplt.compute_ellipse(Atrain_bp[0, :], Atrain_bp[1, :])
+            ax[0].plot(e[0, :], e[1, :], color='r', label='A, big pup')
+            e = cplt.compute_ellipse(Btrain_bp[0, :], Btrain_bp[1, :])
+            ax[0].plot(e[0, :], e[1, :], color='b', label='B, big pup')
+            e = cplt.compute_ellipse(Atrain_sp[0, :], Atrain_sp[1, :])
+            ax[0].plot(e[0, :], e[1, :], color='r', alpha=0.5, label='A, small pup')
+            e = cplt.compute_ellipse(Btrain_sp[0, :], Btrain_sp[1, :])
+            ax[0].plot(e[0, :], e[1, :], color='b', alpha=0.5, label='B, small pup')
+
+
+        else:
+            ax[0].scatter(Atrain_bp[0, :], Atrain_bp[1, :], color='r', label='A, big pup')
+            ax[0].scatter(Btrain_bp[0, :], Btrain_bp[1, :], color='b', label='B, big pup')
+            ax[0].scatter(Atrain_sp[0, :], Atrain_sp[1, :], facecolor='none', color='r', label='A, sm. pup')
+            ax[0].scatter(Btrain_sp[0, :], Btrain_sp[1, :], facecolor='none', color='b', label='B, sm. pup')
     
     # plot vectors
     ax[0].plot([0, wopt_unit[0, 0]], [0, wopt_unit[1, 0]], 'k-', lw=2, label=r'$w_{opt}$')
@@ -1064,10 +1122,21 @@ def plot_pair(est, val, nreps_train, nreps_test, train_pmask=None, test_pmask=No
         ax[1].scatter(test[0, :, 0], test[1, :, 0], edgecolor='white', color='r', label='A')
         ax[1].scatter(test[0, :, 1], test[1, :, 1], edgecolor='white', color='b', label='B')
     else:
-        ax[1].scatter(Atest_bp[0, :], Atest_bp[1, :], color='r', label='A, big pup')
-        ax[1].scatter(Btest_bp[0, :], Btest_bp[1, :], color='b', label='B, big pup')
-        ax[1].scatter(Atest_sp[0, :], Atest_sp[1, :], facecolor='none', color='r', label='A, sm. pup')
-        ax[1].scatter(Btest_sp[0, :], Btest_sp[1, :], facecolor='none', color='b', label='B, sm. pup')
+        if el_only:
+            e = cplt.compute_ellipse(Atest_bp[0, :], Atest_bp[1, :])
+            ax[1].plot(e[0, :], e[1, :], color='r', label='A, big pup')
+            e = cplt.compute_ellipse(Btest_bp[0, :], Btest_bp[1, :])
+            ax[1].plot(e[0, :], e[1, :], color='b', label='B, big pup')
+            e = cplt.compute_ellipse(Atest_sp[0, :], Atest_sp[1, :])
+            ax[1].plot(e[0, :], e[1, :], color='r', alpha=0.5, label='A, small pup')
+            e = cplt.compute_ellipse(Btest_sp[0, :], Btest_sp[1, :])
+            ax[1].plot(e[0, :], e[1, :], color='b', alpha=0.5, label='B, small pup')
+
+        else:
+            ax[1].scatter(Atest_bp[0, :], Atest_bp[1, :], color='r', label='A, big pup')
+            ax[1].scatter(Btest_bp[0, :], Btest_bp[1, :], color='b', label='B, big pup')
+            ax[1].scatter(Atest_sp[0, :], Atest_sp[1, :], facecolor='none', color='r', label='A, sm. pup')
+            ax[1].scatter(Btest_sp[0, :], Btest_sp[1, :], facecolor='none', color='b', label='B, sm. pup')
         
     ax[1].set_xlabel('PLS 1')
     ax[1].set_ylabel('PLS 2')
