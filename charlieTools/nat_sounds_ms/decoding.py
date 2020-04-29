@@ -959,7 +959,7 @@ def _dprime_diag(A, B):
 
 
 # ================================= Data Loading Utils ========================================
-def load_site(site, batch, sim_first_order=False, sim_second_order=False, regress_pupil=False):
+def load_site(site, batch, sim_first_order=False, sim_second_order=False, regress_pupil=False,verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
@@ -1008,6 +1008,9 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, regres
     X_pup = X_pup.reshape(1, reps, epochs, bins)
     pup_mask = pup_mask.reshape(1, reps, epochs, bins)
 
+    X_raw = X.copy()
+    pup_mask_raw = pup_mask.copy()
+
     # simulate data, if specified
     if sim_first_order:
         log.info("Simulating only first order changes between large and small pupil")
@@ -1021,8 +1024,8 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, regres
         X_small = X_small.reshape(-1, X_small.shape[1], epochs, bins)
 
         # simulate
-        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[2])
-        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[2])
+        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[1], N=5000)
+        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[1], N=5000)
     
         X = np.concatenate((X_big_sim, X_small_sim), axis=1)
         p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
@@ -1040,14 +1043,18 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, regres
         X_small = X_small.reshape(-1, X_small.shape[1], epochs, bins)
 
         # simulate
-        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[1])
-        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[1])
+        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[2], N=5000)
+        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[2], N=5000)
     
         X = np.concatenate((X_big_sim, X_small_sim), axis=1)
         p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
         pup_mask = np.concatenate((p_mask, ~p_mask), axis=1)
 
-    return X, X_sp, X_pup, pup_mask
+    if verbose:
+        return X, X_sp, X_pup, pup_mask, X_raw, pup_mask_raw
+    else:
+        return X, X_sp, X_pup, pup_mask
+
 
 # ================================= Plotting Utilities =========================================
 def plot_pair(est, val, nreps_train, nreps_test, train_pmask=None, test_pmask=None, el_only=False):
