@@ -1040,8 +1040,8 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, regres
         X_small = X_small.reshape(-1, X_small.shape[1], epochs, bins)
 
         # simulate
-        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[2])
-        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[2])
+        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[1])
+        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[1])
     
         X = np.concatenate((X_big_sim, X_small_sim), axis=1)
         p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
