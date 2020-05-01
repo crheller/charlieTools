@@ -375,45 +375,142 @@ def error_prop(x, axis=0):
 
 # =============================================== random helpers ==========================================================
 # assortment of helper functions to clean up cache script.
-def get_results_columns():
-    columns = [
-        'dp_opt_test', 
-        'dp_diag_test', 
-        'wopt_test', 
-        'wdiag_test', 
-        'var_explained_test',
-        'evals_test', 
-        'evecs_test', 
-        'dU_test',
-        'dp_opt_train', 
-        'dp_diag_train', 
-        'wopt_train', 
-        'wdiag_train', 
-        'var_explained_train',
-        'evals_train', 
-        'evecs_train', 
-        'dU_train', 
-        'dU_mag_test', 
-        'dU_dot_evec_test', 
-        'cos_dU_wopt_test', 
-        'dU_dot_evec_sq_test', 
-        'evec_snr_test', 
-        'cos_dU_evec_test',
-        'dU_mag_train', 
-        'dU_dot_evec_train', 
-        'cos_dU_wopt_train', 
-        'dU_dot_evec_sq_train', 
-        'evec_snr_train', 
-        'cos_dU_evec_train',
-        'jack_idx', 
-        'n_components', 
-        'combo', 
-        'category', 
-        'site'
-    ]
+def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=None, ptest_mask=None):
+        """
+        perform TDR (custom dim reduction): project into 2D space defined by dU and first noise PC
+        compute dprime and associated metrics
+        return results in a dictionary
+        """
+        tdr = dr.TDR()
+        Y = dr.get_one_hot_matrix(ncategories=2, nreps=nreps_train)
+        tdr.fit(xtrain.T, Y.T)
+        tdr_weights = tdr.weights
 
+        xtrain_tdr = (xtrain.T @ tdr_weights.T).T
+        xtest_tdr = (xtest.T @ tdr_weights.T).T
 
-    return columns
+        xtrain_tdr = nat_preproc.fold_X(xtrain_tdr, nreps=nreps_train, nstim=2, nbins=1).squeeze()
+        xtest_tdr = nat_preproc.fold_X(xtest_tdr, nreps=nreps_test, nstim=2, nbins=1).squeeze()
+
+        tdr_train_var = np.var(xtrain_tdr.T @ tdr_weights)  / np.var(xtrain)
+        tdr_test_var = np.var(xtest_tdr.T @ tdr_weights)  / np.var(xtest)
+
+        # compute dprime metrics raw 
+        tdr_dp_train, tdr_wopt_train, tdr_evals_train, tdr_evecs_train, tdr_dU_train = \
+                                compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1])
+        tdr_dp_test, tdr_wopt_test, tdr_evals_test, tdr_evecs_test, tdr_dU_test = \
+                                compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], wopt=tdr_wopt_train)
+
+        # overwrite test decoder with training, since it's fixed
+        tdr_wopt_test = tdr_wopt_train
+
+        # compute dprime metrics diag decoder
+        tdr_dp_train_diag, tdr_wopt_train_diag, _, _, x = \
+                                compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1], diag=True)
+        tdr_dp_test_diag, tdr_wopt_test_diag, _, _, _ = \
+                                compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], diag=True)
+
+        # caculate additional metrics
+        dU_mag_train         = np.linalg.norm(tdr_dU_train)
+        dU_dot_evec_train    = tdr_dU_train.dot(tdr_evecs_train)
+        cos_dU_wopt_train    = abs(unit_vectors(tdr_dU_train.T).T.dot(unit_vectors(tdr_wopt_train)))
+        dU_dot_evec_sq_train = tdr_dU_train.dot(tdr_evecs_train) ** 2
+        evec_snr_train       = dU_dot_evec_sq_train / tdr_evals_train
+        cos_dU_evec_train    = abs(unit_vectors(tdr_dU_train.T).T.dot(tdr_evecs_train))
+
+        dU_mag_test         = np.linalg.norm(tdr_dU_test)
+        dU_dot_evec_test    = tdr_dU_test.dot(tdr_evecs_test)
+        cos_dU_wopt_test    = abs(unit_vectors(tdr_dU_test.T).T.dot(unit_vectors(tdr_wopt_test)))
+        dU_dot_evec_sq_test = tdr_dU_test.dot(tdr_evecs_test) ** 2
+        evec_snr_test       = dU_dot_evec_sq_test / tdr_evals_test
+        cos_dU_evec_test    = abs(unit_vectors(tdr_dU_test.T).T.dot(tdr_evecs_test))
+
+        # pack results into dictionary to return
+        results = {
+            'dp_opt_test': tdr_dp_test, 
+            'dp_diag_test': tdr_dp_test_diag,
+            'wopt_test': tdr_wopt_test,
+            'wdiag_test': tdr_wopt_test_diag,
+            'var_explained_test': tdr_test_var,
+            'evals_test': tdr_evals_test, 
+            'evecs_test': tdr_evecs_test, 
+            'dU_test': tdr_dU_test,
+            'dp_opt_train': tdr_dp_train, 
+            'dp_diag_train': tdr_dp_train_diag, 
+            'wopt_train': tdr_wopt_train, 
+            'wdiag_train': tdr_wopt_train_diag, 
+            'var_explained_train': tdr_train_var,
+            'evals_train': tdr_evals_train, 
+            'evecs_train': tdr_evecs_train, 
+            'dU_train': tdr_dU_train, 
+            'dU_mag_test': dU_mag_test, 
+            'dU_dot_evec_test': dU_dot_evec_test, 
+            'cos_dU_wopt_test': cos_dU_wopt_test, 
+            'dU_dot_evec_sq_test': dU_dot_evec_sq_test, 
+            'evec_snr_test': evec_snr_test, 
+            'cos_dU_evec_test': cos_dU_evec_test,
+            'dU_mag_train': dU_mag_train, 
+            'dU_dot_evec_train': dU_dot_evec_train, 
+            'cos_dU_wopt_train': cos_dU_wopt_train, 
+            'dU_dot_evec_sq_train': dU_dot_evec_sq_train, 
+            'evec_snr_train': evec_snr_train, 
+            'cos_dU_evec_train': cos_dU_evec_train
+        }
+
+        # deal with large / small pupil data
+        if ptrain_mask is not None:
+            # perform analysis for big / small pupil data too. Only on test set.
+            A_bp = xtest_tdr[:, ptest_mask[0, :, 0], 0]
+            A_sp = xtest_tdr[:, ~ptest_mask[0, :, 0], 0]
+            B_bp = xtest_tdr[:, ptest_mask[0, :, 1], 1]
+            B_sp = xtest_tdr[:, ~ptest_mask[0, :, 1], 1]
+
+            # get dprime / dU
+            bp_dprime, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=tdr_wopt_train)
+            sp_dprime, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=tdr_wopt_train)
+
+            # get pupil-dependent variance along the prinicple noise axes (analogous to lambda)
+            # point is to compare the variance along these PCs between large / small pupil
+            big = np.concatenate([A_bp, B_bp], axis=-1)
+            small = np.concatenate([A_sp, B_sp], axis=-1)
+            bp_lambda = np.var(big.T.dot(tdr_evecs_test), axis=0)
+            sp_lambda = np.var(small.T.dot(tdr_evecs_test), axis=0)
+
+            # compute additional metrics
+            bp_dU_mag         = np.linalg.norm(bp_dU)
+            bp_dU_dot_evec    = bp_dU.dot(tdr_evecs_test)
+            bp_cos_dU_wopt    = abs(unit_vectors(bp_dU.T).T.dot(unit_vectors(tdr_wopt_train)))
+            bp_dU_dot_evec_sq = bp_dU.dot(tdr_evecs_test) ** 2
+            bp_evec_snr       = bp_dU_dot_evec_sq / bp_lambda
+            bp_cos_dU_evec    = abs(unit_vectors(bp_dU.T).T.dot(tdr_evecs_test))
+
+            sp_dU_mag         = np.linalg.norm(sp_dU)
+            sp_dU_dot_evec    = sp_dU.dot(tdr_evecs_test)
+            sp_cos_dU_wopt    = abs(unit_vectors(sp_dU.T).T.dot(unit_vectors(tdr_wopt_train)))
+            sp_dU_dot_evec_sq = sp_dU.dot(tdr_evecs_test) ** 2
+            sp_evec_snr       = sp_dU_dot_evec_sq / sp_lambda
+            sp_cos_dU_evec    = abs(unit_vectors(sp_dU.T).T.dot(tdr_evecs_test))
+
+            results.update({
+                'bp_dp': bp_dprime,
+                'bp_evals': bp_lambda,
+                'bp_dU_mag': bp_dU_mag,
+                'bp_dU_dot_evec': bp_dU_dot_evec,
+                'bp_cos_dU_wopt': bp_cos_dU_wopt,
+                'bp_dU_dot_evec_sq': bp_dU_dot_evec_sq,
+                'bp_evec_snr': bp_evec_snr,
+                'bp_cos_dU_evec': bp_cos_dU_evec,
+                'sp_dp': sp_dprime,
+                'sp_evals': sp_lambda,
+                'sp_dU_mag': sp_dU_mag,
+                'sp_dU_dot_evec': sp_dU_dot_evec,
+                'sp_cos_dU_wopt': sp_cos_dU_wopt,
+                'sp_dU_dot_evec_sq': sp_dU_dot_evec_sq,
+                'sp_evec_snr': sp_evec_snr,
+                'sp_cos_dU_evec': sp_cos_dU_evec
+            })
+
+        return results
 
 
 def do_pca_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=None, ptest_mask=None):
