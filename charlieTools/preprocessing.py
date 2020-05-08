@@ -70,7 +70,7 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, cach
 
     # mask all file epochs for all preds with the shared file epochs
     # and adjust epochs
-    if (int(batch) == 307) | (int(batch) == 294):
+    if (int(batch) == 307): # | (int(batch) == 294):
         for i, p in enumerate(preds):
             preds[i] = p.and_mask(shared_files)
             preds[i] = preds[i].apply_mask(reset_epochs=True)
