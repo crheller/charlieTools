@@ -115,6 +115,8 @@ def scale_est_val(est, val, mean=True, sd=True):
             val_new[i] = val_new[i] - u
 
         if sd:
+            if np.any(std==0):
+                std[np.where(std==0)] = 1
             est_new[i] = est_new[i] / std
             val_new[i] = val_new[i] / std
 

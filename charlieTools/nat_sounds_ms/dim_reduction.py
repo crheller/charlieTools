@@ -37,13 +37,14 @@ class TDR():
         x is shape observation x dim (neuron)
         y is one-hot vector of shape observation x 2 and specifies the ID of each stimulus
         """
+
         # get stim A and stim B matrices
         A = x[y[:,0]==1, :]
         B = x[y[:,1]==1, :]
 
         # get dU
         dU = A.mean(axis=0, keepdims=True) - B.mean(axis=0, keepdims=True)
-        dU /= np.linalg.norm(dU)
+        dU = dU / np.linalg.norm(dU)
 
         # get first PC of mean centered data
         pca = PCA(n_components=1)

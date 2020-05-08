@@ -16,7 +16,7 @@ from nems_lbhb.preprocessing import create_pupil_mask
 log = logging.getLogger(__name__)
 
 
-def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, cache_path=None):
+def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, cache_path=None, recache=False):
     """
     Modifies the exisiting recording so that psth signal is the prediction specified
     by the modelname. Designed with stategain models in mind. CRH.
@@ -28,7 +28,7 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, cach
     """
     if cache_path is not None:
         fn = cache_path + cellids[0][:7] + '_{}.tgz'.format(modelname.split('.')[1])
-        if os.path.isfile(fn):
+        if (os.path.isfile(fn)) & (recache == False):
             rec = Recording.load(fn)
             return rec
         else:
@@ -78,9 +78,11 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, cach
     sigs = {}
     for i, p in enumerate(preds):
         if i == 0:
+            new_psth_sp = p['psth_sp']
             new_psth = p['pred']
             new_resp = p['resp'].rasterize()
         else:
+            new_psth_sp = new_psth_sp.concatenate_channels([new_psth_sp, p['psth_sp']])
             new_psth = new_psth.concatenate_channels([new_psth, p['pred']])
             new_resp = new_resp.concatenate_channels([new_resp, p['resp'].rasterize()])
 
@@ -106,8 +108,10 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, cach
         new_eyespeed = preds[0]['pupil_eyespeed']
         sigs['pupil_eyespeed'] = new_eyespeed
 
+    new_psth_sp.name = 'psth_sp'
     new_psth.name = 'psth'
     new_resp.name = 'resp'
+    sigs['psth_sp'] = new_psth_sp
     sigs['psth'] = new_psth
     sigs['resp'] = new_resp
 
