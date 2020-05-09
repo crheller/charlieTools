@@ -425,6 +425,14 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=N
         evec_snr_test       = dU_dot_evec_sq_test / tdr_evals_test
         cos_dU_evec_test    = abs(unit_vectors(tdr_dU_test.T).T.dot(tdr_evecs_test))
 
+        # project eigenvectors, dU, and wopt back into N-dimensional space
+        # in order to investigate which neurons contribute to signal vs. noise
+        # (think this just needs to be done for train set)
+        dU_all = tdr_dU_train.dot(tdr.weights)
+        wopt_all = tdr_wopt_train.dot(tdr.weights).T
+        evecs_all = tdr_evecs_train.dot(tdr.weights).T
+
+
         # pack results into dictionary to return
         results = {
             'dp_opt_test': tdr_dp_test, 
@@ -454,7 +462,10 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=N
             'cos_dU_wopt_train': cos_dU_wopt_train, 
             'dU_dot_evec_sq_train': dU_dot_evec_sq_train, 
             'evec_snr_train': evec_snr_train, 
-            'cos_dU_evec_train': cos_dU_evec_train
+            'cos_dU_evec_train': cos_dU_evec_train,
+            'dU_all': dU_all,
+            'wopt_all': wopt_all,
+            'evecs_all': evecs_all
         }
 
         # deal with large / small pupil data
@@ -907,6 +918,9 @@ def cast_dtypes(df):
               'dU_dot_evec_sq_train': 'object',
               'evec_snr_train': 'object', 
               'cos_dU_evec_train': 'object',
+              'dU_all': 'object',
+              'wopt_all': 'object',
+              'evecs_all': 'object',
               'bp_dp': 'float64',
               'bp_evals': 'object',
               'bp_dU_mag': 'float64',
