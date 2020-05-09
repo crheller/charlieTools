@@ -429,7 +429,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=N
         # in order to investigate which neurons contribute to signal vs. noise
         # (think this just needs to be done for train set)
         dU_all = tdr_dU_train.dot(tdr.weights)
-        wopt_all = tdr_wopt_train.dot(tdr.weights).T
+        wopt_all = tdr_wopt_train.T.dot(tdr.weights).T
         evecs_all = tdr_evecs_train.dot(tdr.weights).T
 
 
