@@ -16,7 +16,7 @@ from nems_lbhb.preprocessing import create_pupil_mask
 log = logging.getLogger(__name__)
 
 
-def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, cache_path=None, recache=False):
+def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, siteid=None, cache_path=None, recache=False):
     """
     Modifies the exisiting recording so that psth signal is the prediction specified
     by the modelname. Designed with stategain models in mind. CRH.
@@ -26,8 +26,10 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, cach
 
     If the fit dir (from xforms) exists, simply reload the result and call this psth.
     """
+    if siteid is None:
+        raise ValueError("must specify siteid!")
     if cache_path is not None:
-        fn = cache_path + cellids[0][:7] + '_{}.tgz'.format(modelname.split('.')[1])
+        fn = cache_path + siteid + '_{}.tgz'.format(modelname.split('.')[1])
         if (os.path.isfile(fn)) & (recache == False):
             rec = Recording.load(fn)
             return rec
