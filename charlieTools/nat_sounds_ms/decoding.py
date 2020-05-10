@@ -1073,7 +1073,7 @@ def _dprime_diag(A, B):
 
 
 # ================================= Data Loading Utils ========================================
-def load_site(site, batch, sim_first_order=False, sim_second_order=False, regress_pupil=False,verbose=False):
+def load_site(site, batch, sim_first_order=False, sim_second_order=False, regress_pupil=False, use_xforms=False, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
@@ -1100,8 +1100,21 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, regres
 
     # regress out pupil, if specified
     if regress_pupil:
-        log.info('Removing first order pupil')
-        rec = preproc.regress_state(rec, state_sigs=['pupil'])
+        if not use_xforms:
+            log.info('Removing first order pupil')
+            rec = preproc.regress_state(rec, state_sigs=['pupil'])
+        elif use_xforms:
+            log.info('Removing first order pupil by subtracting xforms model prediction')
+            cellid = rec['resp'].chans
+            xforms_modelname = 'ns.fs4.pup-ld-st.pup-hrc-psthfr_sdexp.SxR.bound_jk.nf10-basic'
+            if batch == 294:
+                xforms_modelname = xforms_modelname.replace('pup-ld', 'pup.voc-ld')
+            rec_path = '/auto/users/hellerc/results/nat_pupil_ms/pr_recordings/'
+            rec = preproc.generate_state_corrected_psth(batch=batch, modelname=xforms_modelname, cellids=cellid, 
+                                        siteid=site,
+                                        cache_path=rec_path, recache=False)
+            mod_data = rec['resp']._data - rec['psth']._data + rec['psth_sp']._data
+            rec['resp'] = rec['resp']._modified_copy(mod_data)
 
     resp_dict = rec['resp'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
     spont_signal = rec['resp'].epoch_to_signal('PreStimSilence')
