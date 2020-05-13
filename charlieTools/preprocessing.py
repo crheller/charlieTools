@@ -120,6 +120,9 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
 
     new_rec = Recording(sigs, meta=preds[0].meta)
 
+    # make sure mask is cast to bool
+    new_rec['mask'] = new_rec['mask']._modified_copy(new_rec['mask']._data.astype(bool))
+
     if cache_path is not None:
         log.info('caching {}'.format(fn))
         new_rec.save_targz(fn)
