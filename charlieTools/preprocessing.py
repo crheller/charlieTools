@@ -41,8 +41,6 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
         raise ValueError('Must specify batch and modelname!')
     results_table = nd.get_results_file(batch, modelnames=[modelname])
     preds = []
-    raw_data = []
-    mspecs = []
     for cell in cellids:
         log.info(cell)
         try:
@@ -50,8 +48,6 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
             if os.path.isdir(p):
                 xfspec, ctx = xforms.load_analysis(p)
                 preds.append(ctx['val'])
-                mspecs.append(ctx['modelspec'])
-                raw_data.append(ctx['rec'])
             else:
                 sys.exit('Fit for {0} does not exist'.format(cell))
         except:
@@ -80,27 +76,24 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
         for i, p in enumerate(preds):
             preds[i] = p.and_mask(shared_files)
             preds[i] = preds[i].apply_mask(reset_epochs=True)
-            raw_data[i] = raw_data[i].and_mask(shared_files)
-            raw_data[i] = raw_data[i].apply_mask(reset_epochs=True)
 
     sigs = {}
     for i, p in enumerate(preds):
-        rec = mspecs[i].evaluate(raw_data[i])
         if i == 0:            
-            new_psth_sp = rec['psth_sp']
-            new_psth = rec['pred']
-            new_resp = rec['resp'].rasterize()
+            new_psth_sp = p['psth_sp']
+            new_psth = p['pred']
+            new_resp = p['resp'].rasterize()
 
         else:
-            new_psth_sp = new_psth_sp.concatenate_channels([new_psth_sp, rec['psth_sp']])
-            new_psth = new_psth.concatenate_channels([new_psth, rec['pred']])
-            new_resp = new_resp.concatenate_channels([new_resp, rec['resp'].rasterize()])
+            new_psth_sp = new_psth_sp.concatenate_channels([new_psth_sp, p['psth_sp']])
+            new_psth = new_psth.concatenate_channels([new_psth, p['pred']])
+            new_resp = new_resp.concatenate_channels([new_resp, p['resp'].rasterize()])
 
-    new_pup = raw_data[0]['pupil']
+    new_pup = preds[0]['pupil']
     sigs['pupil'] = new_pup
 
-    if 'pupil_raw' in raw_data[0].signals.keys():
-        sigs['pupil_raw'] = raw_data[0]['pupil_raw']
+    if 'pupil_raw' in preds[0].signals.keys():
+        sigs['pupil_raw'] = preds[0]['pupil_raw']
 
     if 'mask' in preds[0].signals:
         new_mask = preds[0]['mask']
@@ -110,12 +103,12 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
         new_mask = mask_rec['mask']
         sigs['mask'] = new_mask
 
-    if 'rem' in raw_data[0].signals.keys():
-        rem = raw_data[0]['rem']
+    if 'rem' in preds[0].signals.keys():
+        rem = preds[0]['rem']
         sigs['rem'] = rem
 
-    if 'pupil_eyespeed' in raw_data[0].signals.keys():
-        new_eyespeed = raw_data[0]['pupil_eyespeed']
+    if 'pupil_eyespeed' in preds[0].signals.keys():
+        new_eyespeed = preds[0]['pupil_eyespeed']
         sigs['pupil_eyespeed'] = new_eyespeed
 
     new_psth_sp.name = 'psth_sp'
@@ -125,7 +118,7 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
     sigs['psth'] = new_psth
     sigs['resp'] = new_resp
 
-    new_rec = Recording(sigs, meta=raw_data[0].meta)
+    new_rec = Recording(sigs, meta=preds[0].meta)
 
     if cache_path is not None:
         log.info('caching {}'.format(fn))
