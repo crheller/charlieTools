@@ -41,6 +41,8 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
         raise ValueError('Must specify batch and modelname!')
     results_table = nd.get_results_file(batch, modelnames=[modelname])
     preds = []
+    raw_data = []
+    mspecs = []
     for cell in cellids:
         log.info(cell)
         try:
@@ -48,6 +50,8 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
             if os.path.isdir(p):
                 xfspec, ctx = xforms.load_analysis(p)
                 preds.append(ctx['val'])
+                mspecs.append(ctx['modelspec'])
+                raw_data.append(ctx['rec'])
             else:
                 sys.exit('Fit for {0} does not exist'.format(cell))
         except:
@@ -76,23 +80,27 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
         for i, p in enumerate(preds):
             preds[i] = p.and_mask(shared_files)
             preds[i] = preds[i].apply_mask(reset_epochs=True)
+            raw_data[i] = raw_data.and_mask(shared_files)
+            raw_data[i] = raw_data[i].apply_mask(reset_epochs=True)
 
     sigs = {}
     for i, p in enumerate(preds):
-        if i == 0:
-            new_psth_sp = p['psth_sp']
-            new_psth = p['pred']
-            new_resp = p['resp'].rasterize()
-        else:
-            new_psth_sp = new_psth_sp.concatenate_channels([new_psth_sp, p['psth_sp']])
-            new_psth = new_psth.concatenate_channels([new_psth, p['pred']])
-            new_resp = new_resp.concatenate_channels([new_resp, p['resp'].rasterize()])
+        rec = mspecs[i].evaluate(raw_data[i])
+        if i == 0:            
+            new_psth_sp = rec['psth_sp']
+            new_psth = rec['pred']
+            new_resp = rec['resp'].rasterize()
 
-    new_pup = preds[0]['pupil']
+        else:
+            new_psth_sp = new_psth_sp.concatenate_channels([new_psth_sp, rec['psth_sp']])
+            new_psth = new_psth.concatenate_channels([new_psth, rec['pred']])
+            new_resp = new_resp.concatenate_channels([new_resp, rec['resp'].rasterize()])
+
+    new_pup = raw_data[0]['pupil']
     sigs['pupil'] = new_pup
 
-    if 'pupil_raw' in preds[0].signals.keys():
-        sigs['pupil_raw'] = preds[0]['pupil_raw']
+    if 'pupil_raw' in raw_data[0].signals.keys():
+        sigs['pupil_raw'] = raw_data[0]['pupil_raw']
 
     if 'mask' in preds[0].signals:
         new_mask = preds[0]['mask']
@@ -102,12 +110,12 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
         new_mask = mask_rec['mask']
         sigs['mask'] = new_mask
 
-    if 'rem' in preds[0].signals.keys():
-        rem = preds[0]['rem']
+    if 'rem' in raw_data[0].signals.keys():
+        rem = raw_data[0]['rem']
         sigs['rem'] = rem
 
-    if 'pupil_eyespeed' in preds[0].signals.keys():
-        new_eyespeed = preds[0]['pupil_eyespeed']
+    if 'pupil_eyespeed' in raw_data[0].signals.keys():
+        new_eyespeed = raw_data[0]['pupil_eyespeed']
         sigs['pupil_eyespeed'] = new_eyespeed
 
     new_psth_sp.name = 'psth_sp'
@@ -117,7 +125,7 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
     sigs['psth'] = new_psth
     sigs['resp'] = new_resp
 
-    new_rec = Recording(sigs, meta=preds[0].meta)
+    new_rec = Recording(sigs, meta=raw_data[0].meta)
 
     if cache_path is not None:
         log.info('caching {}'.format(fn))
@@ -294,7 +302,7 @@ def regress_state2(rec, state_sigs=['behavior', 'pupil'], regress=['pupil']):
     return r
 
 
-def bandpass_filter_resp(rec, low_c, high_c):
+def bandpass_filter_resp(rec, low_c, high_c, fs=None, alpha=None, boxcar=True):
     '''
     Bandpass filter resp. Return new recording with filtered resp.
     '''
@@ -304,11 +312,16 @@ def bandpass_filter_resp(rec, low_c, high_c):
     if high_c is None:
         high_c = rec['resp'].fs
 
-    newrec = rec.copy()
-    newrec = newrec.apply_mask(reset_epochs=True)
-    fs = rec['resp'].fs
-    resp = rec['resp'].rasterize()._data
-    resp_filt = resp.copy()
+    if (type(rec) is np.ndarray) & (fs is not None):
+        resp_filt = rec.copy()
+        resp = rec.copy()
+    elif (type(rec) is np.ndarray) & (fs is None):
+        raise ValueError("must give sampling rate")
+    else:
+        newrec = rec.copy()
+        fs = rec['resp'].fs
+        resp = rec['resp'].rasterize()._data
+        resp_filt = resp.copy()
     for n in range(resp.shape[0]):
         s = resp[n, :]
         resp_fft = fp.fft(s)
@@ -316,15 +329,70 @@ def bandpass_filter_resp(rec, low_c, high_c):
         inds = np.argwhere((w >= low_c) & (w <= high_c))
         inds2 = np.argwhere((w <= -low_c) & (w >= -high_c))
         m = np.zeros(w.shape)
-        alpha = 0.1
+        if alpha is None:
+            alpha = 0.001
+        if boxcar:
+            alpha = 0
         m[inds] = ss.tukey(len(inds), alpha)[:, np.newaxis]
         m[inds2] = ss.tukey(len(inds2), alpha)[:, np.newaxis]
         resp_cut = resp_fft * m
         resp_filt[n, :] = fp.ifft(resp_cut)
 
-    newrec['resp'] = newrec['resp']._modified_copy(resp_filt)
+    if type(rec) is np.ndarray:
+        return resp_filt
 
-    return newrec
+    else:
+        newrec['resp'] = newrec['resp']._modified_copy(resp_filt)
+
+        return newrec
+
+
+def sliding_window(x, fs, window_size, step_size):
+    """
+    Transform 1 x time vector X into sliding bins of length window_size (in seconds), 
+    taking steps of step_size (in seconds). If step_size == window_size, bins are non-overlapping.
+
+    return:
+        t: center time of each bin
+        Xw: matrix of shape nbins x window_size
+    """
+
+    # convert window_size and step_size to bins
+    window_size = int(fs * window_size)
+    step_size = int(fs * step_size)
+
+    if step_size > window_size:
+        raise ValueError("Step size must be smaller than window size")
+
+    nbins = int(x.shape[-1] / step_size)
+
+    Xw = np.zeros((nbins, window_size))
+    t = np.zeros((nbins))
+    start_idx = 0
+    for b in range(nbins):
+        end_idx = start_idx + window_size
+        _d = x[0, start_idx:end_idx]
+        _t = ((end_idx + start_idx) / 2) / fs
+        try:
+            Xw[b, :] = _d
+            t[b] = _t
+        except:
+            # no more full window_lengths left in x. Break from loop.
+            break
+
+        start_idx += step_size
+
+    # truncate non-filled bins of Xw and t
+    t = t[:b]
+    Xw = Xw[:b, :]
+
+    return t, Xw
+
+
+
+
+
+
 
 def highpass_filter_response(rec, cutoff):
     '''
