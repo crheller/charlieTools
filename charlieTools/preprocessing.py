@@ -80,7 +80,7 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
         for i, p in enumerate(preds):
             preds[i] = p.and_mask(shared_files)
             preds[i] = preds[i].apply_mask(reset_epochs=True)
-            raw_data[i] = raw_data.and_mask(shared_files)
+            raw_data[i] = raw_data[i].and_mask(shared_files)
             raw_data[i] = raw_data[i].apply_mask(reset_epochs=True)
 
     sigs = {}
