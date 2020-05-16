@@ -1079,7 +1079,8 @@ def _dprime_diag(A, B):
 
 
 # ================================= Data Loading Utils ========================================
-def load_site(site, batch, sim_first_order=False, sim_second_order=False, regress_pupil=False, var_first_order=True, use_xforms=False, verbose=False):
+def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_all=False,
+                                 regress_pupil=False, var_first_order=True, use_xforms=False, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
@@ -1183,6 +1184,24 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, regres
         p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
         pup_mask = np.concatenate((p_mask, ~p_mask), axis=1)
 
+    elif sim_all:
+        log.info("simulating both first and second order change between large and small pupil")
+        # simulate first order and second order statistics of data
+        xtemp = X.reshape(X.shape[0], reps, epochs * bins)
+        pmasktemp = pup_mask.reshape(1, reps, epochs * bins)
+        X_big = np.stack([xtemp[:, pmasktemp[0, :, i], i] for i in range(epochs * bins)], axis=-1)
+        X_big = X_big.reshape(-1, X_big.shape[1], epochs, bins)
+        X_small = np.stack([xtemp[:, ~pmasktemp[0, :, i], i] for i in range(epochs * bins)], axis=-1)
+        X_small = X_small.reshape(-1, X_small.shape[1], epochs, bins)
+
+        # simulate
+        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[1, 2], var_first_order=var_first_order, N=5000)
+        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[1, 2], var_first_order=var_first_order, N=5000)
+    
+        X = np.concatenate((X_big_sim, X_small_sim), axis=1)
+        p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
+        pup_mask = np.concatenate((p_mask, ~p_mask), axis=1)        
+
     if verbose:
         return X, X_sp, X_pup, pup_mask, X_raw, pup_mask_raw
     else:
@@ -1201,6 +1220,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     X, sp_bins, X_pup, pup_mask = load_site(site=site, batch=batch, 
                                        sim_first_order=False, 
                                        sim_second_order=False,
+                                       sim_all=False,
                                        regress_pupil=False)
 
     ncells = X.shape[0]
