@@ -432,6 +432,10 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=N
         wopt_all = tdr_wopt_train.T.dot(tdr.weights).T
         evecs_all = tdr_evecs_train.dot(tdr.weights).T
 
+        # also do for test (except for wopt which is defined on train)
+        dU_all_test = tdr_dU_test.dot(tdr.weights)
+        evecs_all_test = tdr_evecs_test.dot(tdr.weights).T
+
 
         # pack results into dictionary to return
         results = {
@@ -465,7 +469,9 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=N
             'cos_dU_evec_train': cos_dU_evec_train,
             'dU_all': dU_all,
             'wopt_all': wopt_all,
-            'evecs_all': evecs_all
+            'evecs_all': evecs_all,
+            'dU_all_test': dU_all_test,
+            'evecs_all_test': evecs_all_test
         }
 
         # deal with large / small pupil data
