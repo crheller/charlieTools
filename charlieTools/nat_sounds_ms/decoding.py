@@ -1187,7 +1187,7 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, regres
 
 
 def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1', 'dim2'], 
-                        ylim=(None, None), xlim=(None, None), ellipse=False, ax=None):
+                        ylim=(None, None), xlim=(None, None), ellipse=False, ax_length=None, ax=None):
     """
     Given a site / stimulus pair, load data, run dprime analysis on all data for the pair
      (no test / train), plot results
@@ -1206,17 +1206,12 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     nstim = nstim * nbins
 
     X = X[:, :, [pair[0], pair[1]]]
-
-    if xlim[1] is not None:
-        xmask = (X[0, :, :] < xlim[1]).squeeze().sum(axis=-1) == 2
-        X = X[:, xmask, :]
-    if ylim[1] is not None:
-        ymask = (X[1, :, :] < ylim[1]).squeeze().sum(axis=-1) == 2
-        X = X[:, ymask, :]
+    Xdisplay = X.copy()
 
     reps = X.shape[1]
     X, _ = nat_preproc.scale_est_val([X], [X])
     X = X[0]
+
     Xflat = nat_preproc.flatten_X(X[:, :, :, np.newaxis])
 
     tdr_results, tdr_weights = do_tdr_dprime_analysis(Xflat,
@@ -1228,30 +1223,56 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
                                                       verbose = True)
     weights = tdr_weights
     dprime = tdr_results['dp_opt_test']
-    evec = tdr_results['evecs_test'][:, 0]   
+    evec = tdr_results['evecs_test'][:, 0] 
+    evals = tdr_results['evals_test'][0]  
+    wopt = tdr_results['wopt_test']
     cos_du = tdr_results['cos_dU_evec_test'][0, 0]
     
     # project all data onto the mean tdr axes
     Xflat = Xflat.T.dot(weights.T).T
     X = nat_preproc.fold_X(Xflat, nreps=reps, nstim=2, nbins=1)
 
+    removed = 0
+    if xlim[1] is not None:
+        xmask1 = (X[0, :, :] < xlim[1]).squeeze().sum(axis=-1) == 2
+        xmask2 = (X[0, :, :] > xlim[0]).squeeze().sum(axis=-1) == 2
+        xmask = xmask1 & xmask2
+        removed += (xmask==False).sum()
+        X = X[:, xmask, :]
+    if ylim[1] is not None:
+        ymask1 = (X[1, :, :] < ylim[1]).squeeze().sum(axis=-1) == 2
+        ymask2 = (X[1, :, :] > ylim[0]).squeeze().sum(axis=-1) == 2
+        ymask = ymask1 & ymask2
+        removed += (ymask==False).sum()
+        X = X[:, ymask, :]
+
+    log.info("Removing {0} / {1} reps due to ax limits".format(removed, reps))
+
     # plot results
     if ax is None:
         f, ax = plt.subplots(1, 1, figsize=(4, 4))
 
-    ax.scatter(X[0, :, 0], X[1, :, 0], s=50, color=colors[0], edgecolor='white')
-    ax.scatter(X[0, :, 1], X[1, :, 1], s=50, color=colors[1], edgecolor='white')
+    ax.scatter(X[0, :, 0], X[1, :, 0], s=25, color=colors[0], edgecolor='white')
+    ax.scatter(X[0, :, 1], X[1, :, 1], s=25, color=colors[1], edgecolor='white')
 
     if ellipse:
         e1 = cplt.compute_ellipse(X[0, :, 0], X[1, :, 0])
         e2 = cplt.compute_ellipse(X[0, :, 1], X[1, :, 1])
-        ax.plot(e1[0], e1[1], color=colors[0])
-        ax.plot(e2[0], e2[1], color=colors[1])
+        ax.plot(e1[0], e1[1], lw=2, color=colors[0])
+        ax.plot(e2[0], e2[1], lw=2, color=colors[1])
 
     # plot first noise PC
-    ax.plot([0, evec[0]], [0, evec[1]], 'k', lw=2, label=r"$\mathbf{e}_{\alpha=1}$")
+    # scale evecs for plotting
+    evec = evec * ax_length
+    ax.plot([0, evec[0]], [0, evec[1]], 'k', lw=2, label=r"$\mathbf{e}_{1}$")
     ev1 = np.negative(evec)
-    ax.plot([0, evec[0]], [0, evec[1]], 'k', lw=2)
+    ax.plot([0, ev1[0]], [0, ev1[1]], 'k', lw=2)
+
+    # plot wopt
+    wopt = (wopt / np.linalg.norm(wopt)) * ax_length
+    ax.plot([0, wopt[0]], [0, wopt[1]], 'grey', lw=2, label=r"$\mathbf{w}_{opt}$")
+    wopt1 = np.negative(wopt)
+    ax.plot([0, wopt1[0]], [0, wopt1[1]], 'grey', lw=2)
 
     ax.set_ylim(ylim)
     ax.set_xlim(xlim)
@@ -1261,7 +1282,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     ax.legend(frameon=False)
     ax.set_title(r"$d'^{2} = %s$" 
                     "\n"
-                    r"$|cos(\Delta \mathbf{\mu}, \mathbf{e}_{\alpha=1})| = %s$" % (round(dprime, 2), round(cos_du, 2)))   
+                    r"$|cos(\theta_{\Delta \mathbf{\mu}, \mathbf{e}_{1}})| = %s$" % (round(dprime, 2), round(cos_du, 2)))   
 
 
     return ax
