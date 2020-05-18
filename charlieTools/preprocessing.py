@@ -610,9 +610,10 @@ def zscore_dict(d, d_norm=None):
 
 def zscore_per_stim(d1, d2):
     d = d1.copy()
-    d_norm = d2.copy()
-    if d_norm is None:
+    if d2 is None:
         d_norm = d
+    elif d2 is not None:
+        d_norm = d2.copy()
 
     for k in d_norm.keys():
         reps = d[k].shape[0]

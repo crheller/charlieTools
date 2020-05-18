@@ -375,7 +375,8 @@ def error_prop(x, axis=0):
 
 # =============================================== random helpers ==========================================================
 # assortment of helper functions to clean up cache script.
-def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=None, ptest_mask=None, verbose=False):
+def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, 
+                                    beta1=None, beta2=None, ptrain_mask=None, ptest_mask=None, verbose=False):
         """
         perform TDR (custom dim reduction): project into 2D space defined by dU and first noise PC
         compute dprime and associated metrics
@@ -473,6 +474,25 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=N
             'dU_all_test': dU_all_test,
             'evecs_all_test': evecs_all_test
         }
+
+        if beta1 is not None:
+            # if beta1/beta2 are not done, calculate SNR along these two dimensions
+            beta1_tdr = beta1[np.newaxis, :].dot(tdr_weights.T)
+            beta2_tdr = beta2[np.newaxis, :].dot(tdr_weights.T)
+            beta1_lambda = np.var(xtest_tdr.T.dot(beta1_tdr.T) @ beta1_tdr)
+            beta2_lambda = np.var(xtest_tdr.T.dot(beta2_tdr.T) @ beta2_tdr)
+            dU_dot_beta1_sq = tdr_dU_test.dot(beta1_tdr.T)[0][0]**2
+            dU_dot_beta2_sq = tdr_dU_test.dot(beta2_tdr.T)[0][0]**2
+            beta1_snr = dU_dot_beta1_sq / beta1_lambda
+            beta2_snr = dU_dot_beta2_sq / beta2_lambda
+            results.update({
+                'beta1_lambda': beta1_lambda,
+                'beta2_lambda': beta2_lambda,
+                'dU_dot_beta1_sq': dU_dot_beta1_sq,
+                'dU_dot_beta2_sq': dU_dot_beta2_sq,
+                'beta1_snr': beta1_snr,
+                'beta2_snr':  beta2_snr
+            })            
 
         # deal with large / small pupil data
         if ptrain_mask is not None:
@@ -924,9 +944,17 @@ def cast_dtypes(df):
               'dU_dot_evec_sq_train': 'object',
               'evec_snr_train': 'object', 
               'cos_dU_evec_train': 'object',
+              'beta1_lambda': 'float64',
+              'beta2_lambda': 'float64',
+              'dU_dot_beta1_sq': 'float64',
+              'dU_dot_beta2_sq':'float64',
+              'beta1_snr':'float64',
+              'beta2_snr':  'float64',
               'dU_all': 'object',
               'wopt_all': 'object',
               'evecs_all': 'object',
+              'dU_all_test': 'object',
+              'evecs_all_test': 'object',
               'bp_dp': 'float64',
               'bp_evals': 'object',
               'bp_dU_mag': 'float64',
