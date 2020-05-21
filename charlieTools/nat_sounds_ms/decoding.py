@@ -437,7 +437,6 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
         dU_all_test = tdr_dU_test.dot(tdr.weights)
         evecs_all_test = tdr_evecs_test.dot(tdr.weights).T
 
-
         # pack results into dictionary to return
         results = {
             'dp_opt_test': tdr_dp_test, 
@@ -476,23 +475,43 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
         }
 
         if beta1 is not None:
-            # if beta1/beta2 are not done, calculate SNR along these two dimensions
-            beta1_tdr = beta1[np.newaxis, :].dot(tdr_weights.T)
-            beta2_tdr = beta2[np.newaxis, :].dot(tdr_weights.T)
-            beta1_lambda = np.var(xtest_tdr.T.dot(beta1_tdr.T) @ beta1_tdr)
-            beta2_lambda = np.var(xtest_tdr.T.dot(beta2_tdr.T) @ beta2_tdr)
+            beta1_tdr = beta1.T.dot(tdr_weights.T)      
+            # center xtest for each stim
+            xcenter = xtest_tdr - xtest_tdr.mean(axis=-1, keepdims=True)
+            xcenter = xcenter.reshape(2, -1)    
+
+            beta1_lambda = np.var(xcenter.T.dot(beta1_tdr.T)) # @ beta1_tdr)
             dU_dot_beta1_sq = tdr_dU_test.dot(beta1_tdr.T)[0][0]**2
-            dU_dot_beta2_sq = tdr_dU_test.dot(beta2_tdr.T)[0][0]**2
             beta1_snr = dU_dot_beta1_sq / beta1_lambda
-            beta2_snr = dU_dot_beta2_sq / beta2_lambda
+
+            dU_dot_beta1 = abs((tdr_dU_test / np.linalg.norm(tdr_dU_test)).dot(beta1_tdr.T))[0][0]
+
             results.update({
                 'beta1_lambda': beta1_lambda,
-                'beta2_lambda': beta2_lambda,
                 'dU_dot_beta1_sq': dU_dot_beta1_sq,
+                'beta1_snr':  beta1_snr,
+                'cos_dU_beta1': dU_dot_beta1
+            })  
+
+        if beta2 is not None:
+            beta2_tdr = beta2.T.dot(tdr_weights.T)      
+            # center xtest for each stim
+            xcenter = xtest_tdr - xtest_tdr.mean(axis=-1, keepdims=True)
+            xcenter = xcenter.reshape(2, -1)    
+
+            beta2_lambda = np.var(xcenter.T.dot(beta2_tdr.T)) # @ beta2_tdr)
+            dU_dot_beta2_sq = tdr_dU_test.dot(beta2_tdr.T)[0][0]**2
+            beta2_snr = dU_dot_beta2_sq / beta2_lambda
+
+            dU_dot_beta2 = abs((tdr_dU_test / np.linalg.norm(tdr_dU_test)).dot(beta2_tdr.T))[0][0]
+
+            results.update({
+                'beta2_lambda': beta2_lambda,
                 'dU_dot_beta2_sq': dU_dot_beta2_sq,
-                'beta1_snr': beta1_snr,
-                'beta2_snr':  beta2_snr
-            })            
+                'beta2_snr':  beta2_snr,
+                'cos_dU_beta2': dU_dot_beta2
+            })  
+
 
         # deal with large / small pupil data
         if ptrain_mask is not None:
@@ -950,6 +969,8 @@ def cast_dtypes(df):
               'dU_dot_beta2_sq':'float64',
               'beta1_snr':'float64',
               'beta2_snr':  'float64',
+              'cos_dU_beta1': 'float64',
+              'cos_dU_beta2': 'float64',
               'dU_all': 'object',
               'wopt_all': 'object',
               'evecs_all': 'object',
@@ -1108,12 +1129,16 @@ def _dprime_diag(A, B):
 
 # ================================= Data Loading Utils ========================================
 def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_all=False,
-                                 regress_pupil=False, var_first_order=True, use_xforms=False, verbose=False):
+                                 regress_pupil=False, deflate_residual_dim=None, var_first_order=True, use_xforms=False, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
     
     Returns full spike count matrix, X, and a spike count matrix with just spont data
+
+    If deflate_residual is not None (is a vector/matrix), the project residuals onto 
+    thie set of dimenions to make a reduced rank matrix. Subtract this off 
+    from residuals.
     """
     options = {'cellid': site, 'rasterfs': 4, 'batch': batch, 'pupil': True, 'stim': False}
     if batch == 294:
@@ -1124,14 +1149,6 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
         if rec.meta['cells_to_extract'] is not None:
             log.info("Extracting cellids: {0}".format(rec.meta['cells_to_extract']))
             rec['resp'] = rec['resp'].extract_channels(rec.meta['cells_to_extract'])
-
-    # remove post stim silence (keep prestim so that can get a baseline dprime on each sound)
-    rec = rec.and_mask(['PostStimSilence'], invert=True)
-    if batch == 294:
-        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_' in epoch]
-    else:
-        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
-    rec = rec.and_mask(epochs)
 
     # regress out pupil, if specified
     if regress_pupil:
@@ -1150,6 +1167,36 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
                                         cache_path=rec_path, recache=False)
             mod_data = rec['resp']._data - rec['psth']._data + rec['psth_sp']._data
             rec['resp'] = rec['resp']._modified_copy(mod_data)
+    
+    if deflate_residual_dim is not None:
+            log.info('Reducing rank of residuals by deflating out given dimenions')
+            cellid = rec['resp'].chans
+            xforms_modelname = 'ns.fs4.pup-ld-st.pup-hrc-psthfr_sdexp.SxR.bound_jk.nf10-basic'
+            if batch == 294:
+                xforms_modelname = xforms_modelname.replace('pup-ld', 'pup.voc-ld')
+            rec_path = '/auto/users/hellerc/results/nat_pupil_ms/pr_recordings/'
+            rec = preproc.generate_state_corrected_psth(batch=batch, modelname=xforms_modelname, cellids=cellid, 
+                                        siteid=site,
+                                        cache_path=rec_path, recache=False)
+            residual = rec['resp']._data - rec['psth_sp']._data
+            reduced_rank = residual.T.dot(deflate_residual_dim)[:, np.newaxis] @ deflate_residual_dim[np.newaxis]
+            residual = residual - reduced_rank.T
+            mod_data = rec['psth_sp']._data + residual
+            rec['resp'] = rec['resp']._modified_copy(mod_data)
+
+    # make sure mask is a bool
+    if 'mask' in rec.signals.keys():
+        rec['mask'] = rec['mask']._modified_copy(rec['mask']._data.astype(bool))
+
+    # remove post stim silence (keep prestim so that can get a baseline dprime on each sound)
+    rec = rec.and_mask(['PostStimSilence'], invert=True)
+    if batch == 294:
+        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_' in epoch]
+    else:
+        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
+    rec = rec.and_mask(epochs)
+
+
 
     resp_dict = rec['resp'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
     spont_signal = rec['resp'].epoch_to_signal('PreStimSilence')

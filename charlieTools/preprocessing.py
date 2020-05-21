@@ -608,7 +608,7 @@ def zscore_dict(d, d_norm=None):
     return d
 
 
-def zscore_per_stim(d1, d2):
+def zscore_per_stim(d1, d2, with_std=True):
     d = d1.copy()
     if d2 is None:
         d_norm = d
@@ -621,7 +621,8 @@ def zscore_per_stim(d1, d2):
         std = np.tile(d_norm[k].std(axis=0), [reps, 1, 1])
         std[std==0] = 1
         d[k] = d[k] - m
-        d[k] = d[k] / std
+        if with_std:
+            d[k] = d[k] / std
 
     return d
 
