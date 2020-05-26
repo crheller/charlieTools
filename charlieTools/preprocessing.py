@@ -16,7 +16,7 @@ from nems_lbhb.preprocessing import create_pupil_mask
 log = logging.getLogger(__name__)
 
 
-def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, siteid=None, cache_path=None, recache=False):
+def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, siteid=None, gain_only=False, cache_path=None, recache=False):
     """
     Modifies the exisiting recording so that psth signal is the prediction specified
     by the modelname. Designed with stategain models in mind. CRH.
@@ -30,6 +30,8 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
         raise ValueError("must specify siteid!")
     if cache_path is not None:
         fn = cache_path + siteid + '_{}.tgz'.format(modelname.split('.')[1])
+        if gain_only:
+            fn = fn.replace('.tgz', '_gonly.tgz')
         if (os.path.isfile(fn)) & (recache == False):
             rec = Recording.load(fn)
             return rec
@@ -41,6 +43,7 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
         raise ValueError('Must specify batch and modelname!')
     results_table = nd.get_results_file(batch, modelnames=[modelname])
     preds = []
+    ms = []
     for cell in cellids:
         log.info(cell)
         try:
@@ -48,6 +51,7 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
             if os.path.isdir(p):
                 xfspec, ctx = xforms.load_analysis(p)
                 preds.append(ctx['val'])
+                ms.append(ctx['modelspec'])
             else:
                 sys.exit('Fit for {0} does not exist'.format(cell))
         except:
@@ -79,14 +83,23 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
 
     sigs = {}
     for i, p in enumerate(preds):
-        if i == 0:            
+        if gain_only:
+            # update phi
+            mspec = ms[i]
+            not_gain_keys = [k for k in mspec[0]['phi'].keys() if '_g' not in k]
+            for k in not_gain_keys:
+                mspec[0]['phi'][k] = np.append(mspec[0]['phi'][k][0, 0], np.zeros(mspec[0]['phi'][k].shape[-1]-1))[np.newaxis, :]
+            pred = mspec.evaluate(p)['pred']
+        else:
+            pred = p['pred'] 
+        if i == 0:           
             new_psth_sp = p['psth_sp']
-            new_psth = p['pred']
+            new_psth = pred
             new_resp = p['resp'].rasterize()
 
         else:
             new_psth_sp = new_psth_sp.concatenate_channels([new_psth_sp, p['psth_sp']])
-            new_psth = new_psth.concatenate_channels([new_psth, p['pred']])
+            new_psth = new_psth.concatenate_channels([new_psth, pred])
             new_resp = new_resp.concatenate_channels([new_resp, p['resp'].rasterize()])
 
     new_pup = preds[0]['pupil']

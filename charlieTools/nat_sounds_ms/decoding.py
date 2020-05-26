@@ -475,7 +475,9 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
         }
 
         if beta1 is not None:
-            beta1_tdr = beta1.T.dot(tdr_weights.T)      
+            beta1_tdr = beta1.T.dot(tdr_weights.T)   
+            beta1_tdr = beta1_tdr / np.linalg.norm(beta1_tdr) 
+
             # center xtest for each stim
             xcenter = xtest_tdr - xtest_tdr.mean(axis=-1, keepdims=True)
             xcenter = xcenter.reshape(2, -1)    
@@ -494,7 +496,9 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
             })  
 
         if beta2 is not None:
-            beta2_tdr = beta2.T.dot(tdr_weights.T)      
+            beta2_tdr = beta2.T.dot(tdr_weights.T)   
+            beta2_tdr = beta2_tdr / np.linalg.norm(beta2_tdr) 
+               
             # center xtest for each stim
             xcenter = xtest_tdr - xtest_tdr.mean(axis=-1, keepdims=True)
             xcenter = xcenter.reshape(2, -1)    
