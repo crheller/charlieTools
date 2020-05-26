@@ -476,7 +476,8 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
 
         if beta1 is not None:
             beta1_tdr = beta1.T.dot(tdr_weights.T)   
-            beta1_tdr = beta1_tdr / np.linalg.norm(beta1_tdr) 
+            beta1_mag = np.linalg.norm(beta1_tdr) 
+            beta1_tdr = beta1_tdr / beta1_mag
 
             # center xtest for each stim
             xcenter = xtest_tdr - xtest_tdr.mean(axis=-1, keepdims=True)
@@ -490,6 +491,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
 
             results.update({
                 'beta1_lambda': beta1_lambda,
+                'beta1_mag': beta1_mag,
                 'dU_dot_beta1_sq': dU_dot_beta1_sq,
                 'beta1_snr':  beta1_snr,
                 'cos_dU_beta1': dU_dot_beta1
@@ -497,7 +499,8 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
 
         if beta2 is not None:
             beta2_tdr = beta2.T.dot(tdr_weights.T)   
-            beta2_tdr = beta2_tdr / np.linalg.norm(beta2_tdr) 
+            beta2_mag = np.linalg.norm(beta2_tdr) 
+            beta2_tdr = beta2_tdr / beta2_mag
                
             # center xtest for each stim
             xcenter = xtest_tdr - xtest_tdr.mean(axis=-1, keepdims=True)
@@ -511,6 +514,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
 
             results.update({
                 'beta2_lambda': beta2_lambda,
+                'beta2_mag': beta2_mag,
                 'dU_dot_beta2_sq': dU_dot_beta2_sq,
                 'beta2_snr':  beta2_snr,
                 'cos_dU_beta2': dU_dot_beta2
@@ -969,6 +973,8 @@ def cast_dtypes(df):
               'cos_dU_evec_train': 'object',
               'beta1_lambda': 'float64',
               'beta2_lambda': 'float64',
+              'beta1_mag': 'float64',
+              'beta2_mag': 'float64',
               'dU_dot_beta1_sq': 'float64',
               'dU_dot_beta2_sq':'float64',
               'beta1_snr':'float64',
