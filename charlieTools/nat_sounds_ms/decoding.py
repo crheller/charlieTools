@@ -397,18 +397,18 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
         tdr_test_var = np.var(xtest_tdr.T @ tdr_weights)  / np.var(xtest)
 
         # compute dprime metrics raw 
-        tdr_dp_train, tdr_wopt_train, tdr_evals_train, tdr_evecs_train, tdr_dU_train = \
+        tdr_dp_train, tdr_wopt_train, tdr_evals_train, tdr_evecs_train, evec_sim_train, tdr_dU_train = \
                                 compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1])
-        tdr_dp_test, tdr_wopt_test, tdr_evals_test, tdr_evecs_test, tdr_dU_test = \
+        tdr_dp_test, tdr_wopt_test, tdr_evals_test, tdr_evecs_test, evec_sim_test, tdr_dU_test = \
                                 compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], wopt=tdr_wopt_train)
 
         # overwrite test decoder with training, since it's fixed
         tdr_wopt_test = tdr_wopt_train
 
         # compute dprime metrics diag decoder
-        tdr_dp_train_diag, tdr_wopt_train_diag, _, _, x = \
+        tdr_dp_train_diag, tdr_wopt_train_diag, _, _, _, x = \
                                 compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1], diag=True)
-        tdr_dp_test_diag, tdr_wopt_test_diag, _, _, _ = \
+        tdr_dp_test_diag, tdr_wopt_test_diag, _, _, _, _ = \
                                 compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], diag=True)
 
         # caculate additional metrics
@@ -446,6 +446,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
             'var_explained_test': tdr_test_var,
             'evals_test': tdr_evals_test, 
             'evecs_test': tdr_evecs_test, 
+            'evec_sim_test': evec_sim_test,
             'dU_test': tdr_dU_test,
             'dp_opt_train': tdr_dp_train, 
             'dp_diag_train': tdr_dp_train_diag, 
@@ -454,6 +455,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
             'var_explained_train': tdr_train_var,
             'evals_train': tdr_evals_train, 
             'evecs_train': tdr_evecs_train, 
+            'evec_sim_train': evec_sim_train,
             'dU_train': tdr_dU_train, 
             'dU_mag_test': dU_mag_test, 
             'dU_dot_evec_test': dU_dot_evec_test, 
@@ -544,8 +546,8 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
             B_sp = xtest_tdr[:, ~ptest_mask[0, :, 1], 1]
 
             # get dprime / dU
-            bp_dprime, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=tdr_wopt_train)
-            sp_dprime, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=tdr_wopt_train)
+            bp_dprime, _, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=tdr_wopt_train)
+            sp_dprime, _, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=tdr_wopt_train)
 
             # get pupil-dependent variance along the prinicple noise axes (analogous to lambda)
             # point is to compare the variance along these PCs between large / small pupil
@@ -620,18 +622,18 @@ def do_pca_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=N
         pca_test_var = np.var(xtest_pca.T @ pca_weights)  / np.var(xtest)
 
         # compute dprime metrics raw 
-        pca_dp_train, pca_wopt_train, pca_evals_train, pca_evecs_train, pca_dU_train = \
+        pca_dp_train, pca_wopt_train, pca_evals_train, pca_evecs_train, evec_sim_train, pca_dU_train = \
                                 compute_dprime(xtrain_pca[:, :, 0], xtrain_pca[:, :, 1])
-        pca_dp_test, pca_wopt_test, pca_evals_test, pca_evecs_test, pca_dU_test = \
+        pca_dp_test, pca_wopt_test, pca_evals_test, pca_evecs_test, evec_sim_test, pca_dU_test = \
                                 compute_dprime(xtest_pca[:, :, 0], xtest_pca[:, :, 1], wopt=pca_wopt_train)
 
         # overwrite test decoder with training, since it's fixed
         pca_wopt_test = pca_wopt_train
 
         # compute dprime metrics diag decoder
-        pca_dp_train_diag, pca_wopt_train_diag, _, _, x = \
+        pca_dp_train_diag, pca_wopt_train_diag, _, _, _, x = \
                                 compute_dprime(xtrain_pca[:, :, 0], xtrain_pca[:, :, 1], diag=True)
-        pca_dp_test_diag, pca_wopt_test_diag, _, _, _ = \
+        pca_dp_test_diag, pca_wopt_test_diag, _, _, _, _ = \
                                 compute_dprime(xtest_pca[:, :, 0], xtest_pca[:, :, 1], diag=True)
 
         # caculate additional metrics
@@ -690,8 +692,8 @@ def do_pca_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=N
             B_sp = xtest_pca[:, ~ptest_mask[0, :, 1], 1]
 
             # get dprime / dU
-            bp_dprime, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=pca_wopt_train)
-            sp_dprime, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=pca_wopt_train)
+            bp_dprime, _, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=pca_wopt_train)
+            sp_dprime, _, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=pca_wopt_train)
 
             # get pupil-dependent variance along the prinicple noise axes (analogous to lambda)
             # point is to compare the variance along these PCs between large / small pupil
@@ -964,6 +966,7 @@ def cast_dtypes(df):
               'var_explained_test': 'float64',
               'evals_test': 'object',
               'evecs_test': 'object',
+              'evec_sim_test': 'float64',
               'dU_test': 'object',
               'dp_opt_train': 'float64',
               'dp_diag_train': 'float64',
@@ -972,6 +975,7 @@ def cast_dtypes(df):
               'var_explained_train': 'float64',
               'evals_train': 'object',
               'evecs_train': 'object',
+              'evec_sim_train': 'float64',
               'dU_train': 'object',
               'dU_mag_test': 'float64',
               'dU_dot_evec_test': 'object',
@@ -1044,6 +1048,7 @@ def compute_dprime(A, B, diag=False, wopt=None):
         decoding axis (with norm 1)
         evals: (of mean covariance matrix)
         evecs: (of mean covariance matrix)
+        evec_sim: similarity of first eigenvector between the two stimuli, A and B
         dU: <A> - <B>
     """
     if (A.shape[0] > A.shape[1]) & (wopt is None):
@@ -1053,12 +1058,12 @@ def compute_dprime(A, B, diag=False, wopt=None):
         raise ValueError("Number of dimensions do not match between conditions")
 
     if diag:
-        dprime, wopt, evals, evecs, dU = _dprime_diag(A, B)
+        dprime, wopt, evals, evecs, evec_sim, dU = _dprime_diag(A, B)
 
     else:
-        dprime, wopt, evals, evecs, dU = _dprime(A, B, wopt=wopt)
+        dprime, wopt, evals, evecs, evec_sim, dU = _dprime(A, B, wopt=wopt)
 
-    return dprime, wopt, evals, evecs, dU 
+    return dprime, wopt, evals, evecs, evec_sim, dU 
 
 
 def _dprime(A, B, wopt=None):
@@ -1066,8 +1071,18 @@ def _dprime(A, B, wopt=None):
     See Rumyantsev et. al 2020, Nature for nice derivation
     """
 
-    usig = 0.5 * (np.cov((A - A.mean(axis=-1, keepdims=True))) + np.cov((B - B.mean(axis=-1, keepdims=True))))
+    sigA = np.cov((A - A.mean(axis=-1, keepdims=True)))
+    sigB = np.cov((B - B.mean(axis=-1, keepdims=True)))
+
+    usig = 0.5 * (sigA + sigB)
     u_vec = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]    
+
+    try:
+        valA, vecA = np.linalg.eig(sigA)
+        valB, vecB = np.linalg.eig(sigB)
+        evec_sim = abs(vecB[:, np.argsort(valB)[::-1][0]].dot(vecA[:, np.argsort(valA)[::-1][0]]))
+    except:
+        evec_sim = np.nan
 
     if wopt is not None:
         wopt_train = wopt / np.linalg.norm(wopt)
@@ -1111,9 +1126,9 @@ def _dprime(A, B, wopt=None):
         evals_nan = np.nan * np.ones((A.shape[0], ))
         evecs_nan = np.nan * np.ones((A.shape[0], A.shape[0]))
         u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
-        return np.nan, wopt_nan, evals_nan, evecs_nan, u_vec_nan
+        return np.nan, wopt_nan, evals_nan, evecs_nan, np.nan, u_vec_nan
 
-    return dp2, wopt, evals, evecs, u_vec
+    return dp2, wopt, evals, evecs, evec_sim, u_vec
 
 
 def _dprime_diag(A, B):
@@ -1121,7 +1136,20 @@ def _dprime_diag(A, B):
     See Rumyantsev et. al 2020, Nature  and Averbeck 2006, JNP for nice derivations.
         Note typo in Rumyantsev though!
     """
-    usig = 0.5 * (np.cov((A - A.mean(axis=-1, keepdims=True))) + np.cov((B - B.mean(axis=-1, keepdims=True))))
+
+    sigA = np.cov((A - A.mean(axis=-1, keepdims=True)))
+    sigB = np.cov((B - B.mean(axis=-1, keepdims=True)))
+
+    usig = 0.5 * (sigA + sigB)
+    u_vec = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]    
+
+    try:
+        valA, vecA = np.linalg.eig(sigA)
+        valB, vecB = np.linalg.eig(sigB)
+        evec_sim = abs(vecB[:, np.argsort(valB)[::-1][0]].dot(vecA[:, np.argsort(valA)[::-1][0]]))
+    except:
+        evec_sim = np.nan
+
     u_vec = (A.mean(axis=-1) - B.mean(axis=-1))[np.newaxis, :]
 
     try:
@@ -1141,7 +1169,7 @@ def _dprime_diag(A, B):
         evals_nan = np.nan * np.ones((A.shape[0], ))
         evecs_nan = np.nan * np.ones((A.shape[0], A.shape[0]))
         u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
-        return np.nan, wopt_nan, evals_nan, evecs_nan, u_vec_nan
+        return np.nan, wopt_nan, evals_nan, evecs_nan, np.nan, u_vec_nan
 
     dp2 = (numerator / denominator).squeeze()
 
@@ -1154,7 +1182,7 @@ def _dprime_diag(A, B):
     # best decoding axis ignoring correlations (reduces to direction of u_vec)
     wopt_diag = np.linalg.inv(usig_diag) @ u_vec.T
 
-    return dp2, wopt_diag, evals, evecs, u_vec
+    return dp2, wopt_diag, evals, evecs, evec_sim, u_vec
 
 
 # ================================= Data Loading Utils ========================================
@@ -1317,7 +1345,7 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
 
 
 def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1', 'dim2'], 
-                        ylim=(None, None), xlim=(None, None), ellipse=False, ax_length=None, ax=None):
+                        ylim=(None, None), xlim=(None, None), ellipse=False, pup_cmap=False, lv_axis=None, ax_length=1, ax=None):
     """
     Given a site / stimulus pair, load data, run dprime analysis on all data for the pair
      (no test / train), plot results
@@ -1333,10 +1361,12 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     nstim = X.shape[2]
     nbins = X.shape[3]
     X = X.reshape(ncells, nreps, nstim * nbins)
+    X_pup = X_pup.reshape(1, nreps, nstim * nbins)
     sp_bins = sp_bins.reshape(1, sp_bins.shape[1], nstim * nbins)
     nstim = nstim * nbins
 
     X = X[:, :, [pair[0], pair[1]]]
+    X_pup = X_pup[:, :, [pair[0], pair[1]]]
     Xdisplay = X.copy()
 
     reps = X.shape[1]
@@ -1383,8 +1413,12 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     if ax is None:
         f, ax = plt.subplots(1, 1, figsize=(4, 4))
 
-    ax.scatter(X[0, :, 0], X[1, :, 0], s=25, color=colors[0], edgecolor='white')
-    ax.scatter(X[0, :, 1], X[1, :, 1], s=25, color=colors[1], edgecolor='white')
+    if pup_cmap:
+        ax.scatter(X[0, :, 0, 0], X[1, :, 0, 0], s=40, c=X_pup[0, :, 0], cmap='Reds', edgecolor='white')
+        ax.scatter(X[0, :, 1, 0], X[1, :, 1, 0], s=40, c=X_pup[0, :, 1], cmap='Blues', edgecolor='white')
+    else:
+        ax.scatter(X[0, :, 0], X[1, :, 0], s=25, color=colors[0], edgecolor='white')
+        ax.scatter(X[0, :, 1], X[1, :, 1], s=25, color=colors[1], edgecolor='white')
 
     if ellipse:
         e1 = cplt.compute_ellipse(X[0, :, 0], X[1, :, 0])
@@ -1404,6 +1438,13 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     ax.plot([0, wopt[0]], [0, wopt[1]], 'grey', lw=2, label=r"$\mathbf{w}_{opt}$")
     wopt1 = np.negative(wopt)
     ax.plot([0, wopt1[0]], [0, wopt1[1]], 'grey', lw=2)
+
+    if lv_axis is not None:
+        lv_axis = lv_axis.T.dot(weights.T).T
+        lv_axis = (lv_axis / np.linalg.norm(lv_axis)) * ax_length
+        ax.plot([0, lv_axis[0]], [0, lv_axis[1]], 'magenta', lw=2, label="LV axis")
+        lv_axis = np.negative(lv_axis)
+        ax.plot([0, lv_axis[0]], [0, lv_axis[1]], 'magenta', lw=2)
 
     ax.set_ylim(ylim)
     ax.set_xlim(xlim)
