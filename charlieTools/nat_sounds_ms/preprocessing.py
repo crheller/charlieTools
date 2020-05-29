@@ -124,16 +124,16 @@ def scale_est_val(est, val, mean=True, sd=True):
     return est_new, val_new
 
 
-def get_first_pc_per_val(val):
+def get_first_pc_per_est(est):
     """
-    Val is a list of validation response matrices. For each matrix, 
+    est is a list of validation response matrices. For each matrix, 
     calculate the first PC of the noise (stimulus subtracted).
     Return a list with the PC weights for each val set.
     """
     # each el in val is shape (neuron x reps x stim)
     pcs = []
-    for v in val:
-        residual = v - v.mean(axis=1, keepdims=True)
+    for e in est:
+        residual = e - e.mean(axis=1, keepdims=True)
         pca = PCA(n_components=1)
         pca.fit(residual.reshape(residual.shape[0], -1).T)
         pcs.append(pca.components_)
