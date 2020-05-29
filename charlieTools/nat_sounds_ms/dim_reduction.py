@@ -30,7 +30,9 @@ class TDR():
     Then, find axis 2, the axis orthogonal to axis1 that completes the plane
     defined by PC1 and axis 1
     """
-    def __init__(self):
+    def __init__(self, tdr2_init=None):
+        # if tdr2_init is NOT none, then use this to define TDR2 relative to dU
+        self.tdr2_init = tdr2_init
         return None
 
     def fit(self, x, y):
@@ -48,12 +50,15 @@ class TDR():
         dU = dU / np.linalg.norm(dU)
 
         # get first PC of mean centered data
-        pca = PCA(n_components=1)
-        A0 = A - A.mean(axis=0, keepdims=True)
-        B0 = B - B.mean(axis=0, keepdims=True)
-        Xcenter = np.concatenate((A0, B0), axis=0)
-        pca.fit(Xcenter)
-        noise_axis = pca.components_
+        if self.tdr2_init is None:
+            pca = PCA(n_components=1)
+            A0 = A - A.mean(axis=0, keepdims=True)
+            B0 = B - B.mean(axis=0, keepdims=True)
+            Xcenter = np.concatenate((A0, B0), axis=0)
+            pca.fit(Xcenter)
+            noise_axis = pca.components_
+        else:
+            noise_axis = self.tdr2_init
 
         # figure out the axis that spans the plane with dU
         noise_on_dec = (np.dot(noise_axis, dU.T)) * dU

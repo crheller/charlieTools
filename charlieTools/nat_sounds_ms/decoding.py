@@ -376,13 +376,13 @@ def error_prop(x, axis=0):
 # =============================================== random helpers ==========================================================
 # assortment of helper functions to clean up cache script.
 def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, 
-                                    beta1=None, beta2=None, ptrain_mask=None, ptest_mask=None, verbose=False):
+                                    beta1=None, beta2=None, tdr2_axis=None, ptrain_mask=None, ptest_mask=None, verbose=False):
         """
         perform TDR (custom dim reduction): project into 2D space defined by dU and first noise PC
         compute dprime and associated metrics
         return results in a dictionary
         """
-        tdr = dr.TDR()
+        tdr = dr.TDR(tdr2_init=tdr2_axis)
         Y = dr.get_one_hot_matrix(ncategories=2, nreps=nreps_train)
         tdr.fit(xtrain.T, Y.T)
         tdr_weights = tdr.weights
