@@ -1187,7 +1187,8 @@ def _dprime_diag(A, B):
 
 # ================================= Data Loading Utils ========================================
 def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_all=False,
-                                 regress_pupil=False, deflate_residual_dim=None, var_first_order=True, use_xforms=False, verbose=False):
+                                 regress_pupil=False, gain_only=False, deflate_residual_dim=None, 
+                                 var_first_order=True, use_xforms=False, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
@@ -1221,7 +1222,7 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
                 xforms_modelname = xforms_modelname.replace('pup-ld', 'pup.voc-ld')
             rec_path = '/auto/users/hellerc/results/nat_pupil_ms/pr_recordings/'
             rec = preproc.generate_state_corrected_psth(batch=batch, modelname=xforms_modelname, cellids=cellid, 
-                                        siteid=site,
+                                        siteid=site, gain_only=gain_only,
                                         cache_path=rec_path, recache=False)
             mod_data = rec['resp']._data - rec['psth']._data + rec['psth_sp']._data
             rec['resp'] = rec['resp']._modified_copy(mod_data)
