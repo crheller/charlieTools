@@ -1345,7 +1345,7 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
 
 
 def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1', 'dim2'], 
-                        ylim=(None, None), xlim=(None, None), ellipse=False, pup_cmap=False, lv_axis=None, ax_length=1, ax=None):
+                        ylim=(None, None), xlim=(None, None), ellipse=False, pup_cmap=False, lv_axis=None, lv_ax_name='LV axis', ax_length=1, ax=None):
     """
     Given a site / stimulus pair, load data, run dprime analysis on all data for the pair
      (no test / train), plot results
@@ -1365,13 +1365,16 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     sp_bins = sp_bins.reshape(1, sp_bins.shape[1], nstim * nbins)
     nstim = nstim * nbins
 
-    X = X[:, :, [pair[0], pair[1]]]
-    X_pup = X_pup[:, :, [pair[0], pair[1]]]
     Xdisplay = X.copy()
 
     reps = X.shape[1]
     X, _ = nat_preproc.scale_est_val([X], [X])
     X = X[0]
+
+    tdr_axis = nat_preproc.get_first_pc_per_est([X])
+
+    X = X[:, :, [pair[0], pair[1]]]
+    X_pup = X_pup[:, :, [pair[0], pair[1]]]
 
     Xflat = nat_preproc.flatten_X(X[:, :, :, np.newaxis])
 
@@ -1379,6 +1382,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
                                                       Xflat,
                                                       reps,
                                                       reps,
+                                                      tdr2_axis=tdr_axis[0],
                                                       ptrain_mask=None,
                                                       ptest_mask=None,
                                                       verbose = True)
@@ -1410,6 +1414,9 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     log.info("Removing {0} / {1} reps due to ax limits".format(removed, reps))
 
     # plot results
+    # center X, for the sake of visualization. Doesn't affect dprime
+    X = X - X.mean(axis=2, keepdims=True)
+
     if ax is None:
         f, ax = plt.subplots(1, 1, figsize=(4, 4))
 
@@ -1442,7 +1449,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     if lv_axis is not None:
         lv_axis = lv_axis.T.dot(weights.T).T
         lv_axis = (lv_axis / np.linalg.norm(lv_axis)) * ax_length
-        ax.plot([0, lv_axis[0]], [0, lv_axis[1]], 'magenta', lw=2, label="LV axis")
+        ax.plot([0, lv_axis[0]], [0, lv_axis[1]], 'magenta', lw=2, label=lv_ax_name)
         lv_axis = np.negative(lv_axis)
         ax.plot([0, lv_axis[0]], [0, lv_axis[1]], 'magenta', lw=2)
 
