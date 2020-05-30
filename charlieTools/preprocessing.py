@@ -16,7 +16,8 @@ from nems_lbhb.preprocessing import create_pupil_mask
 log = logging.getLogger(__name__)
 
 
-def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, siteid=None, gain_only=False, cache_path=None, recache=False):
+def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, siteid=None, 
+                                        gain_only=False, dc_only=False, cache_path=None, recache=False):
     """
     Modifies the exisiting recording so that psth signal is the prediction specified
     by the modelname. Designed with stategain models in mind. CRH.
@@ -88,6 +89,12 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
             mspec = ms[i]
             not_gain_keys = [k for k in mspec[0]['phi'].keys() if '_g' not in k]
             for k in not_gain_keys:
+                mspec[0]['phi'][k] = np.append(mspec[0]['phi'][k][0, 0], np.zeros(mspec[0]['phi'][k].shape[-1]-1))[np.newaxis, :]
+            pred = mspec.evaluate(p)['pred']
+        elif dc_only:
+            mspec = ms[i]
+            not_dc_keys = [k for k in mspec[0]['phi'].keys() if '_d' not in k]
+            for k in not_dc_keys:
                 mspec[0]['phi'][k] = np.append(mspec[0]['phi'][k][0, 0], np.zeros(mspec[0]['phi'][k].shape[-1]-1))[np.newaxis, :]
             pred = mspec.evaluate(p)['pred']
         else:
