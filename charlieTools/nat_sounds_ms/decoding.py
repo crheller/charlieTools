@@ -375,7 +375,7 @@ def error_prop(x, axis=0):
 
 # =============================================== random helpers ==========================================================
 # assortment of helper functions to clean up cache script.
-def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, 
+def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None,
                                     beta1=None, beta2=None, tdr2_axis=None, ptrain_mask=None, ptest_mask=None, verbose=False):
         """
         perform TDR (custom dim reduction): project into 2D space defined by dU and first noise PC
@@ -383,8 +383,12 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test,
         return results in a dictionary
         """
         tdr = dr.TDR(tdr2_init=tdr2_axis)
-        Y = dr.get_one_hot_matrix(ncategories=2, nreps=nreps_train)
-        tdr.fit(xtrain.T, Y.T)
+        if tdr_data is None:
+            Y = dr.get_one_hot_matrix(ncategories=2, nreps=nreps_train)
+            tdr.fit(xtrain.T, Y.T)
+        else:
+            Y = dr.get_one_hot_matrix(ncategories=2, nreps=tdr_data[1])
+            tdr.fit(tdr_data[0].T, Y.T)
         tdr_weights = tdr.weights
 
         xtrain_tdr = (xtrain.T @ tdr_weights.T).T
@@ -1255,8 +1259,6 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
         epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
     rec = rec.and_mask(epochs)
 
-
-
     resp_dict = rec['resp'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
     spont_signal = rec['resp'].epoch_to_signal('PreStimSilence')
     sp_dict = spont_signal.extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
@@ -1276,8 +1278,22 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
     X_pup = X_pup.reshape(1, reps, epochs, bins)
     pup_mask = pup_mask.reshape(1, reps, epochs, bins)
 
+    if verbose:
+        return X, X_sp, X_pup, pup_mask, X_raw, pup_mask_raw
+    else:
+        return X, X_sp, X_pup, pup_mask
+
+
+def simulate_response(X, pup_mask, sim_first_order=False,
+                                   sim_second_order=False,
+                                   sim_all=False,
+                                   var_first_order=True):
     X_raw = X.copy()
     pup_mask_raw = pup_mask.copy()
+
+    reps = X.shape[1]
+    epochs = X.shape[2]
+    bins = X.shape[3]
 
     # simulate data, if specified
     if sim_first_order:
@@ -1334,12 +1350,10 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
     
         X = np.concatenate((X_big_sim, X_small_sim), axis=1)
         p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
-        pup_mask = np.concatenate((p_mask, ~p_mask), axis=1)        
+        pup_mask = np.concatenate((p_mask, ~p_mask), axis=1) 
 
-    if verbose:
-        return X, X_sp, X_pup, pup_mask, X_raw, pup_mask_raw
-    else:
-        return X, X_sp, X_pup, pup_mask
+    return X, pup_mask       
+
 
 
 # ================================= Plotting Utilities =========================================
