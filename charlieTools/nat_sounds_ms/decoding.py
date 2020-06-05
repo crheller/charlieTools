@@ -401,41 +401,48 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
         xtrain_tdr = nat_preproc.fold_X(xtrain_tdr, nreps=nreps_train, nstim=2, nbins=1).squeeze()
         xtest_tdr = nat_preproc.fold_X(xtest_tdr, nreps=nreps_test, nstim=2, nbins=1).squeeze()
 
+        # perform training set decoding analysis (this is so that decoding axis is always defined 
+        # using the raw data, not simulated data)
+        tdr_train_var = np.var(xtrain_tdr.T @ tdr_weights)  / np.var(xtrain)
+
+        tdr_dp_train, tdr_wopt_train, tdr_evals_train, tdr_evecs_train, evec_sim_train, tdr_dU_train = \
+                                compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1])
+
+        # compute dprime metrics diag decoder
+        tdr_dp_train_diag, tdr_wopt_train_diag, _, _, _, x = \
+                                compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1], diag=True)
+
         if sim1 | sim2 | sim12:
             # simulate data. If pupil mask is specified, use this to created simulated trials.
             if ptrain_mask is not None:
+                import pdb; pdb.set_trace()
                 pmask_all = np.concatenate((ptrain_mask, ptest_mask), axis=1)[:, :, :, np.newaxis]
                 x_all = np.concatenate((xtrain_tdr, xtest_tdr), axis=1)[:, :, :, np.newaxis]
                 x_all, pup_mask_all = simulate_response(x_all, pmask_all, sim_first_order=sim1,
                                                                           sim_second_order=sim2,
                                                                           sim_all=sim12,
-                                                                          nreps=nreps_test+nreps_train,
+                                                                          nreps=nreps_test,
                                                                           suppress_log=True)
-                # pseudo split into train / test sets
-                xtrain_tdr = x_all[:, :nreps_train, :, 0]
-                xtest_tdr = x_all[:, nreps_train:, :, 0]
-                ptrain_mask = pup_mask_all[:, :nreps_train, :, 0]
-                ptest_mask = pup_mask_all[:, nreps_train:, :, 0]
-
+                # pull out simulated test set, that's balanced over pupil conditions
+                # do this by taking every other trial
+                xtest_tdr = x_all[:, ::2, :, 0]
+                ptest_mask = pup_mask_all[:, ::2, :, 0]
+                
             else:
                 raise NotImplementedError("Can't do simulations without specifying a pupil mask. TODO: update decoding.simulate_response to handle this")
 
 
-        tdr_train_var = np.var(xtrain_tdr.T @ tdr_weights)  / np.var(xtrain)
+        # now, compute dprime on the test set
         tdr_test_var = np.var(xtest_tdr.T @ tdr_weights)  / np.var(xtest)
 
         # compute dprime metrics raw 
-        tdr_dp_train, tdr_wopt_train, tdr_evals_train, tdr_evecs_train, evec_sim_train, tdr_dU_train = \
-                                compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1])
         tdr_dp_test, tdr_wopt_test, tdr_evals_test, tdr_evecs_test, evec_sim_test, tdr_dU_test = \
                                 compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], wopt=tdr_wopt_train)
 
         # overwrite test decoder with training, since it's fixed
         tdr_wopt_test = tdr_wopt_train
 
-        # compute dprime metrics diag decoder
-        tdr_dp_train_diag, tdr_wopt_train_diag, _, _, _, x = \
-                                compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1], diag=True)
+        # compute dprime diag on test set
         tdr_dp_test_diag, tdr_wopt_test_diag, _, _, _, _ = \
                                 compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], diag=True)
 
@@ -1314,9 +1321,6 @@ def simulate_response(X, pup_mask, sim_first_order=False,
                                    var_first_order=True,
                                    nreps=5000,
                                    suppress_log=False):
-    X_raw = X.copy()
-    pup_mask_raw = pup_mask.copy()
-
     reps = X.shape[1]
     epochs = X.shape[2]
     bins = X.shape[3]
