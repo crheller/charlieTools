@@ -376,11 +376,15 @@ def error_prop(x, axis=0):
 # =============================================== random helpers ==========================================================
 # assortment of helper functions to clean up cache script.
 def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None,
-                                    beta1=None, beta2=None, tdr2_axis=None, ptrain_mask=None, ptest_mask=None, verbose=False):
+                                    beta1=None, beta2=None, tdr2_axis=None, 
+                                    ptrain_mask=None, ptest_mask=None, 
+                                    sim1=False, sim2=False, sim12=False, verbose=False):
         """
         perform TDR (custom dim reduction): project into 2D space defined by dU and first noise PC
         compute dprime and associated metrics
         return results in a dictionary
+
+        NEW: 06.04.2020 - Can perform simulation here, in TDR space
         """
         tdr = dr.TDR(tdr2_init=tdr2_axis)
         if tdr_data is None:
@@ -388,7 +392,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             tdr.fit(xtrain.T, Y.T)
         else:
             Y = dr.get_one_hot_matrix(ncategories=2, nreps=tdr_data[1])
-            tdr.fit(tdr_data[0].T, Y.T)
+            tdr.fit(tdr_data.T, Y.T)
         tdr_weights = tdr.weights
 
         xtrain_tdr = (xtrain.T @ tdr_weights.T).T
@@ -396,6 +400,26 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
 
         xtrain_tdr = nat_preproc.fold_X(xtrain_tdr, nreps=nreps_train, nstim=2, nbins=1).squeeze()
         xtest_tdr = nat_preproc.fold_X(xtest_tdr, nreps=nreps_test, nstim=2, nbins=1).squeeze()
+
+        if sim1 | sim2 | sim12:
+            # simulate data. If pupil mask is specified, use this to created simulated trials.
+            if ptrain_mask is not None:
+                pmask_all = np.concatenate((ptrain_mask, ptest_mask), axis=1)[:, :, :, np.newaxis]
+                x_all = np.concatenate((xtrain_tdr, xtest_tdr), axis=1)[:, :, :, np.newaxis]
+                x_all, pup_mask_all = simulate_response(x_all, pmask_all, sim_first_order=sim1,
+                                                                          sim_second_order=sim2,
+                                                                          sim_all=sim12,
+                                                                          nreps=nreps_test+nreps_train,
+                                                                          suppress_log=True)
+                # pseudo split into train / test sets
+                xtrain_tdr = x_all[:, :nreps_train, :, 0]
+                xtest_tdr = x_all[:, nreps_train:, :, 0]
+                ptrain_mask = pup_mask_all[:, :nreps_train, :, 0]
+                ptest_mask = pup_mask_all[:, nreps_train:, :, 0]
+
+            else:
+                raise NotImplementedError("Can't do simulations without specifying a pupil mask. TODO: update decoding.simulate_response to handle this")
+
 
         tdr_train_var = np.var(xtrain_tdr.T @ tdr_weights)  / np.var(xtrain)
         tdr_test_var = np.var(xtest_tdr.T @ tdr_weights)  / np.var(xtest)
@@ -1287,7 +1311,9 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
 def simulate_response(X, pup_mask, sim_first_order=False,
                                    sim_second_order=False,
                                    sim_all=False,
-                                   var_first_order=True):
+                                   var_first_order=True,
+                                   nreps=5000,
+                                   suppress_log=False):
     X_raw = X.copy()
     pup_mask_raw = pup_mask.copy()
 
@@ -1297,7 +1323,8 @@ def simulate_response(X, pup_mask, sim_first_order=False,
 
     # simulate data, if specified
     if sim_first_order:
-        log.info("Simulating only first order changes between large and small pupil")
+        if not suppress_log:
+            log.info("Simulating only first order changes between large and small pupil")
         # simulate first order difference only between large/small pupil
         # fix second order stats to the overall data
         xtemp = X.reshape(X.shape[0], reps, epochs * bins)
@@ -1308,15 +1335,16 @@ def simulate_response(X, pup_mask, sim_first_order=False,
         X_small = X_small.reshape(-1, X_small.shape[1], epochs, bins)
 
         # simulate
-        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[1], var_first_order=var_first_order, N=5000)
-        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[1], var_first_order=var_first_order, N=5000)
+        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[1], var_first_order=var_first_order, N=nreps)
+        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[1], var_first_order=var_first_order, N=nreps)
     
         X = np.concatenate((X_big_sim, X_small_sim), axis=1)
         p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
         pup_mask = np.concatenate((p_mask, ~p_mask), axis=1)
 
     elif sim_second_order:
-        log.info("simulating only second order change between large and small pupil")
+        if not suppress_log:
+            log.info("simulating only second order change between large and small pupil")
         # simulate first order difference only between large/small pupil
         # fix second order stats to the overall data
         xtemp = X.reshape(X.shape[0], reps, epochs * bins)
@@ -1327,15 +1355,16 @@ def simulate_response(X, pup_mask, sim_first_order=False,
         X_small = X_small.reshape(-1, X_small.shape[1], epochs, bins)
 
         # simulate
-        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[2], var_first_order=var_first_order, N=5000)
-        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[2], var_first_order=var_first_order, N=5000)
+        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[2], var_first_order=var_first_order, N=nreps)
+        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[2], var_first_order=var_first_order, N=nreps)
     
         X = np.concatenate((X_big_sim, X_small_sim), axis=1)
         p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
         pup_mask = np.concatenate((p_mask, ~p_mask), axis=1)
 
     elif sim_all:
-        log.info("simulating both first and second order change between large and small pupil")
+        if not suppress_log:
+            log.info("simulating both first and second order change between large and small pupil")
         # simulate first order and second order statistics of data
         xtemp = X.reshape(X.shape[0], reps, epochs * bins)
         pmasktemp = pup_mask.reshape(1, reps, epochs * bins)
@@ -1345,8 +1374,8 @@ def simulate_response(X, pup_mask, sim_first_order=False,
         X_small = X_small.reshape(-1, X_small.shape[1], epochs, bins)
 
         # simulate
-        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[1, 2], var_first_order=var_first_order, N=5000)
-        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[1, 2], var_first_order=var_first_order, N=5000)
+        X_big_sim = simulate.generate_simulated_trials(X_big, X, keep_stats=[1, 2], var_first_order=var_first_order, N=nreps)
+        X_small_sim = simulate.generate_simulated_trials(X_small, X, keep_stats=[1, 2], var_first_order=var_first_order, N=nreps)
     
         X = np.concatenate((X_big_sim, X_small_sim), axis=1)
         p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
