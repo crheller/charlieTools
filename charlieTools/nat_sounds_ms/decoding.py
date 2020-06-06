@@ -420,7 +420,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
                 x_all, pup_mask_all = simulate_response(x_all, pmask_all, sim_first_order=sim1,
                                                                           sim_second_order=sim2,
                                                                           sim_all=sim12,
-                                                                          nreps=nreps_test,
+                                                                          nreps=5000,
                                                                           suppress_log=True)
                 # pull out simulated test set, that's balanced over pupil conditions
                 # do this by taking every other trial
