@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 
-def generate_simulated_trials(r1, r2=None, keep_stats=[1, 2], var_first_order=True, N=500):
+def generate_simulated_trials(r1, r2=None, keep_stats=[1, 2], var_first_order=True, cov=True, N=500):
     """
     Generate simulated data for r1 dictionary that preserves either 
     first order statistics, second order statistics, or both (keep_stats=[1], [2], [1, 2])
@@ -65,22 +65,27 @@ def generate_simulated_trials(r1, r2=None, keep_stats=[1, 2], var_first_order=Tr
         for e in range(r1.shape[2]):
             for b in range(r1.shape[-1]):
                 u = first_order[:, :, e, b].mean(axis=1)       # mean of all neurons over all trials from the first order dataset
-                cor = np.corrcoef(second_order[:, :, e, b])  # covariance of all neurons from the second order dataset
-                cor[np.isnan(cor)] = 0
-                if var_first_order:
-                    # use first order dataset to define single neuron variance
-                    var = np.var(first_order[:, :, e, b], axis=1, ddof=1)          # variance of single neurons in the first order dataset
+                if cov:
+                    cor = np.cov(second_order[:, :, e, b])
+                    #np.fill_diagonal(cor, np.var(first_order[:, :, e, b], axis=1, ddof=1))
+                    cov_new = cor
                 else:
-                    # use second order dataset to define single neurons variance
-                    var = np.var(second_order[:, :, e, b], axis=1, ddof=1)
-                # determine the new covariance matrix by scaling cor appropriately based on var
-                # For neuron pair i, j:
-                # cov_new(i, j) = corr(i, j) * sqrt(var(i) * var(j))
-                # cov_new = cor * rootV
+                    cor = np.corrcoef(second_order[:, :, e, b])  # covariance of all neurons from the second order dataset
+                    cor[np.isnan(cor)] = 0
+                    if var_first_order:
+                        # use first order dataset to define single neuron variance
+                        var = np.var(first_order[:, :, e, b], axis=1, ddof=1)          # variance of single neurons in the first order dataset
+                    else:
+                        # use second order dataset to define single neurons variance
+                        var = np.var(second_order[:, :, e, b], axis=1, ddof=1)
+                    # determine the new covariance matrix by scaling cor appropriately based on var
+                    # For neuron pair i, j:
+                    # cov_new(i, j) = corr(i, j) * sqrt(var(i) * var(j))
+                    # cov_new = cor * rootV
 
-                # sqrt of outerproduct of variances (rootV)
-                rootV = np.sqrt(np.matmul(var[:, np.newaxis], var[np.newaxis, :]))
-                cov_new = cor * rootV
+                    # sqrt of outerproduct of variances (rootV)
+                    rootV = np.sqrt(np.matmul(var[:, np.newaxis], var[np.newaxis, :]))
+                    cov_new = cor * rootV
 
                 # simulate new data with mean u and covariance cov_new
                 r_new[:, :, e, b] = np.random.multivariate_normal(u, cov_new, (N)).T

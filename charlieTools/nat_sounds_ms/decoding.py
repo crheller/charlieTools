@@ -386,6 +386,29 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
 
         NEW: 06.04.2020 - Can perform simulation here, in TDR space
         """
+
+        if sim1 | sim2 | sim12:
+            # simulate data. If pupil mask is specified, use this to created simulated trials.
+            if ptrain_mask is not None:
+                xtrain_sim = nat_preproc.fold_X(xtrain, nreps=nreps_train, nstim=2, nbins=1)
+                xtest_sim = nat_preproc.fold_X(xtest, nreps=nreps_test, nstim=2, nbins=1)
+                pmask_all = np.concatenate((ptrain_mask, ptest_mask), axis=1)[:, :, :, np.newaxis]
+                x_all = np.concatenate((xtrain_sim, xtest_sim), axis=1)
+                x_all, pup_mask_all = simulate_response(x_all, pmask_all, sim_first_order=sim1,
+                                                                          sim_second_order=sim2,
+                                                                          sim_all=sim12,
+                                                                          nreps=nreps_test,
+                                                                          suppress_log=True)
+                # pull out simulated test set, that's balanced over pupil conditions
+                # do this by taking every other trial
+                # only simulate the "test" set. This way decoding axis always the same as raw data analysis
+                xtest = x_all[:, ::2, :, 0]
+                xtest = xtest.reshape(xtest.shape[0], -1)
+                ptest_mask = pup_mask_all[:, ::2, :, 0]
+                
+            else:
+                raise NotImplementedError("Can't do simulations without specifying a pupil mask. TODO: update decoding.simulate_response to handle this")
+
         tdr = dr.TDR(tdr2_init=tdr2_axis)
         if tdr_data is None:
             Y = dr.get_one_hot_matrix(ncategories=2, nreps=nreps_train)
@@ -411,25 +434,6 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
         # compute dprime metrics diag decoder
         tdr_dp_train_diag, tdr_wopt_train_diag, _, _, _, x = \
                                 compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1], diag=True)
-
-        if sim1 | sim2 | sim12:
-            # simulate data. If pupil mask is specified, use this to created simulated trials.
-            if ptrain_mask is not None:
-                pmask_all = np.concatenate((ptrain_mask, ptest_mask), axis=1)[:, :, :, np.newaxis]
-                x_all = np.concatenate((xtrain_tdr, xtest_tdr), axis=1)[:, :, :, np.newaxis]
-                x_all, pup_mask_all = simulate_response(x_all, pmask_all, sim_first_order=sim1,
-                                                                          sim_second_order=sim2,
-                                                                          sim_all=sim12,
-                                                                          nreps=5000,
-                                                                          suppress_log=True)
-                # pull out simulated test set, that's balanced over pupil conditions
-                # do this by taking every other trial
-                xtest_tdr = x_all[:, ::2, :, 0]
-                ptest_mask = pup_mask_all[:, ::2, :, 0]
-                
-            else:
-                raise NotImplementedError("Can't do simulations without specifying a pupil mask. TODO: update decoding.simulate_response to handle this")
-
 
         # now, compute dprime on the test set
         tdr_test_var = np.var(xtest_tdr.T @ tdr_weights)  / np.var(xtest)
