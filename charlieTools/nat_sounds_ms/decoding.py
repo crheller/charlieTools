@@ -415,7 +415,6 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
         if sim1 | sim2 | sim12:
             # simulate data. If pupil mask is specified, use this to created simulated trials.
             if ptrain_mask is not None:
-                import pdb; pdb.set_trace()
                 pmask_all = np.concatenate((ptrain_mask, ptest_mask), axis=1)[:, :, :, np.newaxis]
                 x_all = np.concatenate((xtrain_tdr, xtest_tdr), axis=1)[:, :, :, np.newaxis]
                 x_all, pup_mask_all = simulate_response(x_all, pmask_all, sim_first_order=sim1,
