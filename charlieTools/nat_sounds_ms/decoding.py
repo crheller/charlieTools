@@ -392,21 +392,30 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             if ptrain_mask is not None:
                 xtest_sim = nat_preproc.fold_X(xtest, nreps=nreps_test, nstim=2, nbins=1)
                 pmask_sim = ptest_mask[:, :, :, np.newaxis]
-                x_sim, pup_mask_sim = simulate_response(xtest_sim, pmask_sim, sim_first_order=sim1,
-                                                                          sim_second_order=sim2,
-                                                                          sim_all=sim12,
-                                                                          nreps=5000,
-                                                                          suppress_log=True)
+                x_sim = []
+                pup_mask_sim = []
+                for s in range(xtest_sim.shape[2]):
+                    _x_sim, _pup_mask_sim = simulate_response(xtest_sim[:, :, [s], :], pmask_sim[:, :, [s], :], 
+                                                                            sim_first_order=sim1,
+                                                                            sim_second_order=sim2,
+                                                                            sim_all=sim12,
+                                                                            nreps=5000,
+                                                                            suppress_log=True)
+                    x_sim.append(_x_sim)
+                    pup_mask_sim.append(_pup_mask_sim)
+                x_sim = np.concatenate(x_sim, axis=2)
+                pup_mask_sim = np.concatenate(pup_mask_sim, axis=2)
                 # pull out simulated test set, that's balanced over pupil conditions
                 # do this by taking every other trial
                 # only simulate the "test" set. This way decoding axis always the same as raw data analysis
                 xtest = x_sim[:, ::2, :, 0]
+                nreps_test = xtest.shape[1]
                 xtest = xtest.reshape(xtest.shape[0], -1)
                 ptest_mask = pup_mask_sim[:, ::2, :, 0]
                 
             else:
                 raise NotImplementedError("Can't do simulations without specifying a pupil mask. TODO: update decoding.simulate_response to handle this")
-
+        
         tdr = dr.TDR(tdr2_init=tdr2_axis)
         if tdr_data is None:
             Y = dr.get_one_hot_matrix(ncategories=2, nreps=nreps_train)
