@@ -9,7 +9,6 @@ def get_tuning_curves(rec):
     """
     r = rec.copy()
     r = r.and_mask(['PreStimSilence', 'PostStimSilence'], invert=True)
-    r = r.apply_mask(reset_epochs=True)
     ref_stims = [s for s in r.epochs.name.unique() if 'STIM' in s]
     freqs = [int(s.split('_')[1]) for s in ref_stims]
     idx = np.argsort(freqs)
@@ -24,12 +23,16 @@ def get_tuning_curves(rec):
 
     islice = pd.IndexSlice
     for f, ref in zip(freqs, ref_stims):
-        reps = r['resp'].extract_epoch(ref).shape[0]
-        resp = np.nanmean(r['resp'].extract_epoch(ref), axis=-1).mean(axis=0)
-        sem = np.nanmean(r['resp'].extract_epoch(ref), axis=-1).std(axis=0) / np.sqrt(reps)
+        try:
+            reps = r['resp'].extract_epoch(ref, mask=r['mask'], allow_incomplete=True).shape[0]
+            resp = np.nanmean(r['resp'].extract_epoch(ref, mask=r['mask'], allow_incomplete=True), axis=-1).mean(axis=0)
+            sem = np.nanmean(r['resp'].extract_epoch(ref, mask=r['mask'], allow_incomplete=True), axis=-1).std(axis=0) / np.sqrt(reps)
 
-        df.loc[islice['r', f]] = resp
-        df.loc[islice['sem', f]] = sem
+            df.loc[islice['r', f]] = resp
+            df.loc[islice['sem', f]] = sem
+        except:
+            df.loc[islice['r', f]] = np.nan
+            df.loc[islice['sem', f]] = np.nan
 
     return df
 

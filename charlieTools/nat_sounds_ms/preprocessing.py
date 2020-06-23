@@ -48,11 +48,14 @@ def fold_X(X_flat, nstim, nreps, nbins):
     return X_flat.reshape(X_flat.shape[0], nreps, nstim, nbins)
 
 
-def get_est_val_sets(X, pup_mask=None, njacks=10):
+def get_est_val_sets(X, pup_mask=None, njacks=10, est_equal_val=False):
     """
     njacks 50-50 splits of the data matrix X.
 
     X is shape Neurons X Reps X Stim.
+
+    if est_equal_val, just return two copies of the raw data. This 
+    is to be used for cases when too few reps exist for cross validation
     """
     nreps = X.shape[1]
     n_test_reps = int(nreps / 2)
@@ -83,9 +86,15 @@ def get_est_val_sets(X, pup_mask=None, njacks=10):
             pass
 
     if pup_mask is not None:
-        return est, val, p_est, p_val
+        if est_equal_val:
+            return [X], [X], [pup_mask], [pup_mask]
+        else:
+            return est, val, p_est, p_val
     else:
-        return est, val
+        if est_equal_val:
+            return [X], [X]
+        else:
+            return est, val
 
 
 def scale_est_val(est, val, mean=True, sd=True):
