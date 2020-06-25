@@ -236,14 +236,25 @@ class DecodingResults():
 
         if name in self.numeric_keys:
             if stim_pair is None:
-                return [self.numeric_results.loc[pd.IndexSlice[:, n_components], name],
-                        self.numeric_results.loc[pd.IndexSlice[:, n_components], name+'_sem']]
+                m = self.numeric_results.index.get_level_values('n_components') == n_components
+                return [self.numeric_results.loc[m, name],
+                        self.numeric_results.loc[m, name+'_sem']]
             elif n_components is None:
-                return [self.numeric_results.loc[pd.IndexSlice[stim_pair, :], name],
-                        self.numeric_results.loc[pd.IndexSlice[stim_pair, :], name+'_sem']]
+                if type(stim_pair) is str:
+                    m = self.numeric_results.index.get_level_values('combo') == stim_pair
+                else:
+                    m = self.numeric_results.index.get_level_values('combo').isin(stim_pair)
+                return [self.numeric_results.loc[m, name],
+                        self.numeric_results.loc[m, name+'_sem']]
             else:
-                return [self.numeric_results.loc[pd.IndexSlice[stim_pair, n_components], name],
-                        self.numeric_results.loc[pd.IndexSlice[stim_pair, n_components], name+'_sem']]
+                m1 = self.numeric_results.index.get_level_values('n_components') == n_components
+                if type(stim_pair) is str:
+                    m2 = self.numeric_results.index.get_level_values('combo') == stim_pair
+                else:
+                    m2 = self.numeric_results.index.get_level_values('combo').isin(stim_pair)
+                m = m1 & m2
+                return [self.numeric_results.loc[m, name],
+                        self.numeric_results.loc[m, name+'_sem']]
 
         elif name in self.object_keys:
             if stim_pair is None:
