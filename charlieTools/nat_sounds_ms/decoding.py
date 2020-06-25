@@ -8,6 +8,10 @@ from sklearn.decomposition import PCA
 from sklearn.cross_decomposition import PLSRegression
 import itertools
 import pickle
+import json
+import jsonpickle
+import jsonpickle.ext.pandas as jsonpickle_pd
+jsonpickle_pd.register_handlers()
 import os
 
 import nems_lbhb.baphy as nb
@@ -314,6 +318,21 @@ class DecodingResults():
         with open(fn, 'rb') as handle:
             data = pickle.load(handle)
         return data
+
+    def save_json(self, fn):
+        log.info("json serializing DecodingResults object to {}".format(fn))
+        js_string = jsonpickle.encode(self)
+        with open(fn, 'w') as handle:
+            json.dump(js_string, handle)
+    
+    def load_json(self, fn):
+        if not os.path.isfile(fn):
+            raise FileNotFoundError
+        log.info("loading json string from {}".format(fn))
+        with open(fn, 'r') as handle:
+            js_string = json.load(handle)
+        return jsonpickle.decode(js_string)
+        
 
 
 def reflect_eigenvectors(x):
