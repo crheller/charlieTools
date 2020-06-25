@@ -1101,6 +1101,7 @@ def cast_dtypes(df):
               'sp_dU_dot_evec_sq': 'object',
               'sp_evec_snr': 'object',
               'sp_cos_dU_evec': 'object',
+              'mean_pupil_range': 'float64',
               'category': 'category',
               'jack_idx': 'category',
               'n_components': 'category',
