@@ -565,13 +565,16 @@ def generate_psth(rec):
 
     return r
 
-def create_ptd_masks(rec):
+def create_ptd_masks(rec, act_pup_range=2):
     """
     Create active behavior mask, passive mask, passive big pupil mask, and passive small pupil mask.
     return new recording with the four masks as signals.
 
     Modified 2/20/2020, CRH. Now, define large pupil as pupil matched to active (w/in 2sd). 
     Small pupil is the (smaller tail) leftover.
+
+    Modified 07/13/2020, CRH. Now, specify how many sd from the mean of active counts as big pupil.
+        default is still 2.
     """
 
     r = rec.copy()
@@ -582,7 +585,7 @@ def create_ptd_masks(rec):
     miss_mask = r.and_mask(['MISS_TRIAL'])['mask']
 
     # define the cutoff as two sd less than the mean of active pupil
-    cutoff = r['pupil']._data[act_mask._data].mean() - (2 * r['pupil']._data[act_mask._data].std())
+    cutoff = r['pupil']._data[act_mask._data].mean() - (act_pup_range * r['pupil']._data[act_mask._data].std())
 
     options = {'state': 'big', 'method': 'user_def_value', 'cutoff': cutoff, 'collapse': True, 'epoch': ['REFERENCE', 'TARGET']}
     pass_big_mask = create_pupil_mask(r.and_mask(['PASSIVE_EXPERIMENT']), **options)['mask']
