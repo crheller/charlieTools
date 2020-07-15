@@ -1,5 +1,7 @@
 import nems_lbhb.baphy as nb
 from nems.recording import Recording
+import os
+import pandas as pd
 
 def load_site(site, fs=20):
     """
@@ -10,8 +12,7 @@ def load_site(site, fs=20):
     rawid = which_rawids(site)
     ops = {'batch': 307, 'pupil': 1, 'rasterfs': fs, 'siteid': site, 'stim': 0,
         'rawid': rawid}
-    uri = nb.baphy_load_recording_uri(**ops)
-    rec = Recording.load(uri)
+    rec = nb.baphy_load_recording_file(**ops)
     rec['resp'] = rec['resp'].rasterize()
 
     return rec
@@ -43,3 +44,26 @@ def which_rawids(site):
         rawid = [130649, 130650, 130657, 130661]                                 # bbl102d
 
     return rawid
+
+
+def load_noise_correlations(modelname, path=None):
+    """
+    Load data frame of noise correlations for all sites
+    """
+
+    if path is None:
+        path = '/auto/users/hellerc/results/ptd_ms/noise_correlation'
+
+    files = os.listdir(path)
+    files = [f for f in files if modelname in f]
+
+    dfs = []
+    for f in files:
+        fil = os.path.join(path, f)
+        df = pd.read_csv(fil, index_col=0)
+        df['site'] = f.split('_')[-1].split('.')[0]
+        dfs.append(df)
+
+    df = pd.concat(dfs) 
+
+    return df
