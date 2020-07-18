@@ -10,7 +10,7 @@ def load_site(site, fs=20):
         files with 20 cells, will not load the prepassive.
     """
     rawid = which_rawids(site)
-    ops = {'batch': 307, 'pupil': 1, 'rasterfs': fs, 'siteid': site, 'stim': 0,
+    ops = {'batch': 307, 'pupil': 1, 'rasterfs': fs, 'cellid': site, 'stim': 0,
         'rawid': rawid}
     rec = nb.baphy_load_recording_file(**ops)
     rec['resp'] = rec['resp'].rasterize()
