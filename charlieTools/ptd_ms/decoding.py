@@ -1,8 +1,6 @@
 import charlieTools.ptd_ms.dim_reduction as dr
 
-import imp
-imp.reload(dr)
-
+import pickle
 import numpy as np
 import pandas as pd
 import itertools
