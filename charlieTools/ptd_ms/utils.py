@@ -2,6 +2,7 @@ import nems_lbhb.baphy as nb
 from nems.recording import Recording
 import os
 import pandas as pd
+import numpy as np
 
 def load_site(site, fs=20):
     """
