@@ -371,7 +371,7 @@ def error_prop(x, axis=0):
 
 
 # HELPER FUNCTIONS
-def get_est_val_sets(d, njacks=10, masks=None, tolerance=2, min_reps=10):
+def get_est_val_sets(d, njacks=10, masks=None, min_reps=10):
     """
     Pretty specialized function. The idea is, for a given dictionary of spike counts 
     over all state conditions, you want to make sure that each est set contains balanced (within 
@@ -416,9 +416,6 @@ def get_est_val_sets(d, njacks=10, masks=None, tolerance=2, min_reps=10):
         n_test_reps = int(nreps / 2)
         all_idx = np.arange(0, nreps)
 
-        tol = (tolerance / 100) * n_test_reps
-        log.info("Tolerance for {0} is: {1}".format(k, tol))
-
         test_idx = []
         dnew[k] = {}
         dnew[k]['est'] = []
@@ -429,13 +426,13 @@ def get_est_val_sets(d, njacks=10, masks=None, tolerance=2, min_reps=10):
         if n_test_reps >= min_reps:
             while (count <= njacks) & (max_iter <= max_iterations):
                 ti = list(np.random.choice(all_idx, n_test_reps, replace=False))
-                # if masks is not None, determine if ti leads to a balanced set of data
+                # if masks is not None, determine if ti leads to sufficient data in est / val for each mask
                 if masks is not None:
                     for mask in masks:
                         md = mask[k][ti, 0, 0]  # masks are def. per epoch, so can just take first el
                         mdv = md.sum()
-                        mdt = md.shape[0]
-                        if abs((mdt-mdv) - mdv) <= tol:
+                        mde = (~md).sum()
+                        if (mdv > (min_reps/2)) & (mde > (min_reps/2)):
                             # this meets tolerance condition, continue going through masks
                             ti_is_balanced = True
                             pass
@@ -458,7 +455,9 @@ def get_est_val_sets(d, njacks=10, masks=None, tolerance=2, min_reps=10):
                                 min_occurences = mdicts[i][k]['est'][-1].shape[0]
 
                         # need to do some extra balancing of the "all data" category based on
-                        # the min represented state. This is done randomly, so extra jackknifes help
+                        # the min represented state. We do this so that estimates using "all data"
+                        # are not biased towards one state.
+                        # This is done randomly, so extra jackknifes help
                         # make sure all the data is sampled
                         keep_idxs = []
                         for mask in masks:
