@@ -17,10 +17,11 @@ def get_noise_axis_per_est(d, keys=None, njacks=None):
         raise ValueError
 
     noise_axes = []
+    X = None
     for j in range(0, njacks):
         for i, k in enumerate(keys):
             try:
-                if i == 0:
+                if X is None:
                     X = d[k]['est'][j].squeeze()
                 else:
                     X = np.concatenate((X, d[k]['est'][j].squeeze()), axis=0)
