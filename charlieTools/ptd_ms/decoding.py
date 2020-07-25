@@ -492,7 +492,7 @@ def get_est_val_sets(d, njacks=10, masks=None, min_reps=10):
     return (dnew,)+tuple(mdicts)
 
 
-def squeeze_time_dim(d, fs, twin):
+def squeeze_time_dim(d, fs, twin, keepdims=False):
     """
     Squish time bins down to single bin according the time window specified by twin
     """
@@ -509,7 +509,7 @@ def squeeze_time_dim(d, fs, twin):
                 d[k]['val'][i] = d[k]['val'][i][:, :, idx].mean(axis=-1, keepdims=True)
         else:   
             # no est / val data
-            d[k] = d[k][:, :, idx].mean(axis=-1)
+            d[k] = d[k][:, :, idx].mean(axis=-1, keepdims=keepdims)
 
     return d
 
