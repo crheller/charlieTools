@@ -67,25 +67,23 @@ def _get_jack_sets(idx):
 def get_bootstrapped_sample(variable, nboot=1000):
     '''
     This function performs a hierarchical bootstrap on the data present in 'variable'.
-    This function assumes that the data in 'variable' is in the format of a 2D array where
-    the rows represent the higher level (e.g. animal/recording site) and
-    the number of columns represent repetitions within that level (e.g. neurons).
+    This function assumes that the data in 'variable' is in the format of a dict where
+    the keys represent the higher level (e.g. animal/recording site) and
+    the values (1D arrays) represent repetitions/observations within that level (e.g. neurons).
     '''
     bootstats = np.zeros(nboot)
     for i in np.arange(nboot):
         temp = []
-        num_lev1 = np.shape(variable)[0]  # 10 animals
-        num_lev2 = np.shape(variable)[1]  # 100 neurons
-        rand_lev1 = np.random.choice(num_lev1,num_lev1)
-        for j in rand_lev1:
-            rand_lev2 = np.random.choice(num_lev2,num_lev2)
+        num_lev1 = len(variable.keys())        # n animals
+        num_lev2 = min([variable[n].shape[0] for n in variable.keys()]) # min number of observations sampled for an animal
+        rand_lev1 = np.random.choice(num_lev1, num_lev1)
+        lev1_keys = np.array(list(variable.keys()))[rand_lev1]
+        for k in lev1_keys:
+            # for this animal, how many obs to choose from?
+            this_n_range = variable[k].shape[0]
+            rand_lev2 = np.random.choice(this_n_range, num_lev2)
+            temp.append(variable[k][rand_lev2])   # k is saying which animal, rand_lev2 are the observations from this animal
 
-            # need to do something smart here, because not all animals have same number of neurons...
-
-
-            temp.append(variable[j,rand_lev2])   # j is saying which animal, rand_lev2 are the neurons from this animal
-
-        
         #Note that this is the step at which actual computation is performed. In all cases for these simulations
         #we are only interested in the mean. But as elaborated in the text, this method can be extended to 
         #several other metrics of interest. They would be computed here:
