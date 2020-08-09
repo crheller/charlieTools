@@ -21,7 +21,7 @@ def get_nonrewarded_targets(rec, manager):
     rew_idx = [True if i>0 else False for i in pump_dur]
     return [str(x) for x in np.array(targets)[~np.array(rew_idx)]]
 
-def get_training_files(animal, runclass, earliest_date, latest_date=None, min_trials=50):
+def get_training_files(animal, runclass, earliest_date, latest_date=None, pupil=False, min_trials=50):
 
     an_regex = "%" + animal + "%"
 
@@ -30,6 +30,9 @@ def get_training_files(animal, runclass, earliest_date, latest_date=None, min_tr
 
     # get list of all training parmfiles
     sql = "SELECT parmfile, resppath FROM gDataRaw WHERE runclass=%s and resppath like %s and training = 1 and bad=0 and trials>%s"
+    if pupil:
+        # require pupil processed
+        sql = "SELECT parmfile, resppath FROM gDataRaw WHERE runclass=%s and resppath like %s and training = 1 and bad=0 and trials>%s and eyewin=2"
     parmfiles = nd.pd_query(sql, (runclass, an_regex, min_trials))
 
     try:

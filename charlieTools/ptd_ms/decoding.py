@@ -1,5 +1,6 @@
 import charlieTools.ptd_ms.dim_reduction as dr
 
+import os
 import pickle
 import numpy as np
 import pandas as pd
@@ -817,3 +818,25 @@ def _dprime_diag(A, B):
     wopt_diag = np.linalg.inv(usig_diag) @ u_vec.T
 
     return dp2, wopt_diag, evals, evecs, evec_sim, u_vec
+
+
+
+def dprime_load_wrapper(basemodel, sites=None, states=['active', 'passive'], path=None):
+    """
+    Load decodingResults object for the given base model for each behavior state.
+    Return a nested dict with each key corresponding to first a state,
+    then the next key to a site, and the value corresponding to the DecodingResults object
+    """
+    if path is None:
+        path = '/auto/users/hellerc/results/ptd_ms/dprime/'
+    if sites is None:
+        sites = os.listdir(path)
+    loader = DecodingResults()
+    results = {}
+    for s in states:
+        results[s] = {}
+        for site in sites:
+            fn = os.path.join(path, site, basemodel + '_{0}.pickle'.format(s))
+            results[s][site] = loader.load_results(fn)
+    
+    return results
