@@ -30,9 +30,14 @@ class TDR():
     Then, find axis 2, the axis orthogonal to axis1 that completes the plane
     defined by PC1 and axis 1
     """
-    def __init__(self, tdr2_init=None):
-        # if tdr2_init is NOT none, then use this to define TDR2 relative to dU
+    def __init__(self, tdr2_init=None, n_additional_axes=None):
+        '''
+        if tdr2_init is NOT none, then use this to define TDR2 relative to dU
+        if n_additional_axes is not None, add this many more "noise" dimensions.
+            - this means the first n PCs of the noise data outside of the original 2D TDR space
+        '''
         self.tdr2_init = tdr2_init
+        self.n_additional_axes = n_additional_axes
         return None
 
     def fit(self, x, y):
@@ -66,6 +71,20 @@ class TDR():
         orth_ax /= np.linalg.norm(orth_ax)
 
         weights = np.concatenate((dU, orth_ax), axis=0)
+
+        if self.n_additional_axes is not None:
+            # remove TDR projection
+            A0 = A - A.mean(axis=0, keepdims=True)
+            B0 = B - B.mean(axis=0, keepdims=True)
+            Xcenter = np.concatenate((A0, B0), axis=0)
+            Xresidual = Xcenter - Xcenter.dot(weights.T).dot(weights)
+
+            # find n additional axes, orthogonal to TDR plane
+            pca = PCA(n_components=self.n_additional_axes)
+            pca.fit(Xresidual)
+            noise_weights = pca.components_
+            weights = np.concatenate((weights, noise_weights), axis=0)
+
 
         self.weights = weights
 

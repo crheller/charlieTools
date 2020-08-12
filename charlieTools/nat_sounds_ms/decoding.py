@@ -232,7 +232,7 @@ class DecodingResults():
         # no need to return anything... just update object attributes
 
 
-    def get_result(self, name, stim_pair, n_components):
+    def get_result(self, name, stim_pair=None, n_components=None):
 
         if name in self.numeric_keys:
             if stim_pair is None:
@@ -405,7 +405,7 @@ def error_prop(x, axis=0):
 
 # =============================================== random helpers ==========================================================
 # assortment of helper functions to clean up cache script.
-def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None,
+def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None, n_additional_axes=None,
                                     beta1=None, beta2=None, tdr2_axis=None, 
                                     ptrain_mask=None, ptest_mask=None, 
                                     sim1=False, sim2=False, sim12=False, verbose=False):
@@ -446,7 +446,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             else:
                 raise NotImplementedError("Can't do simulations without specifying a pupil mask. TODO: update decoding.simulate_response to handle this")
         
-        tdr = dr.TDR(tdr2_init=tdr2_axis)
+        tdr = dr.TDR(tdr2_init=tdr2_axis, n_additional_axes=n_additional_axes)
         if tdr_data is None:
             Y = dr.get_one_hot_matrix(ncategories=2, nreps=nreps_train)
             tdr.fit(xtrain.T, Y.T)
@@ -561,8 +561,8 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             beta1_tdr = beta1_tdr / beta1_mag
 
             # center xtest for each stim
-            xcenter = xtest_tdr - xtest_tdr.mean(axis=-1, keepdims=True)
-            xcenter = xcenter.reshape(2, -1)    
+            xcenter = xtest_tdr - xtest_tdr.mean(axis=1, keepdims=True)
+            xcenter = xcenter.reshape(2+n_additional_axes, -1)    
 
             beta1_lambda = np.var(xcenter.T.dot(beta1_tdr.T)) # @ beta1_tdr)
             dU_dot_beta1_sq = tdr_dU_test.dot(beta1_tdr.T)[0][0]**2
@@ -591,8 +591,8 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             beta2_tdr = beta2_tdr / beta2_mag
                
             # center xtest for each stim
-            xcenter = xtest_tdr - xtest_tdr.mean(axis=-1, keepdims=True)
-            xcenter = xcenter.reshape(2, -1)    
+            xcenter = xtest_tdr - xtest_tdr.mean(axis=1, keepdims=True)
+            xcenter = xcenter.reshape(2+n_additional_axes, -1)    
 
             beta2_lambda = np.var(xcenter.T.dot(beta2_tdr.T)) # @ beta2_tdr)
             dU_dot_beta2_sq = tdr_dU_test.dot(beta2_tdr.T)[0][0]**2
