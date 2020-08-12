@@ -64,7 +64,7 @@ def _get_jack_sets(idx):
 
 
 # hierarchachal bootstrap, see: cite biorxiv paper
-def get_bootstrapped_sample(variable, nboot=1000):
+def get_bootstrapped_sample(variable, even_sample=True, nboot=1000):
     '''
     This function performs a hierarchical bootstrap on the data present in 'variable'.
     This function assumes that the data in 'variable' is in the format of a dict where
@@ -81,8 +81,12 @@ def get_bootstrapped_sample(variable, nboot=1000):
         for k in lev1_keys:
             # for this animal, how many obs to choose from?
             this_n_range = variable[k].shape[0]
-            rand_lev2 = np.random.choice(this_n_range, this_n_range)
-            temp.append(variable[k][rand_lev2])   # k is saying which animal, rand_lev2 are the observations from this animal
+            if even_sample:
+                rand_lev2 = np.random.choice(this_n_range, num_lev2)
+            else:
+                rand_lev2 = np.random.choice(this_n_range, this_n_range)
+
+            temp.extend(variable[k][rand_lev2].tolist())   # k is saying which animal, rand_lev2 are the observations from this animal
 
         #Note that this is the step at which actual computation is performed. In all cases for these simulations
         #we are only interested in the mean. But as elaborated in the text, this method can be extended to 

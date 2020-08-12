@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from nems_lbhb.baphy_experiment import BAPHYExperiment
 
-def load_site(site, fs=20):
+def load_site(site, fs=20, return_baphy_manager=False, recache=False):
     """
     Load data for all active/passive files at this site with the largest number of stable cellids
         i.e. if the site has a prepassive file where there were only 3 cells but there were 4 other a/p 
@@ -13,13 +13,16 @@ def load_site(site, fs=20):
     """
     rawid = which_rawids(site)
     ops = {'batch': 307, 'pupil': 1, 'rasterfs': fs, 'cellid': site, 'stim': 0,
-        'rawid': rawid, 'resp': True}
+        'rawid': rawid, 'resp': True, 'recache': recache}
     #rec = nb.baphy_load_recording_file(**ops)
     manager = BAPHYExperiment(batch=307, siteid=site, rawid=rawid)
     rec = manager.get_recording(**ops)
     rec['resp'] = rec['resp'].rasterize()
 
-    return rec
+    if return_baphy_manager:
+        return rec, manager
+    else:
+        return rec
 
 def which_rawids(site):
     if site == 'TAR010c':
