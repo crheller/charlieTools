@@ -75,19 +75,19 @@ def get_bootstrapped_sample(variable, nboot=1000):
     for i in np.arange(nboot):
         temp = []
         num_lev1 = len(variable.keys())        # n animals
-        num_lev2 = min([variable[n].shape[0] for n in variable.keys()]) # min number of observations sampled for an animal
+        num_lev2 = max([variable[n].shape[0] for n in variable.keys()]) # min number of observations sampled for an animal
         rand_lev1 = np.random.choice(num_lev1, num_lev1)
         lev1_keys = np.array(list(variable.keys()))[rand_lev1]
         for k in lev1_keys:
             # for this animal, how many obs to choose from?
             this_n_range = variable[k].shape[0]
-            rand_lev2 = np.random.choice(this_n_range, num_lev2)
+            rand_lev2 = np.random.choice(this_n_range, this_n_range)
             temp.append(variable[k][rand_lev2])   # k is saying which animal, rand_lev2 are the observations from this animal
 
         #Note that this is the step at which actual computation is performed. In all cases for these simulations
         #we are only interested in the mean. But as elaborated in the text, this method can be extended to 
         #several other metrics of interest. They would be computed here:
-        bootstats[i] = np.mean(temp)
+        bootstats[i] = np.mean(np.concatenate(temp))
         
     return bootstats
 
