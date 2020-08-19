@@ -405,7 +405,7 @@ def error_prop(x, axis=0):
 
 # =============================================== random helpers ==========================================================
 # assortment of helper functions to clean up cache script.
-def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None, n_additional_axes=None,
+def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None, n_additional_axes=0,
                                     beta1=None, beta2=None, tdr2_axis=None, 
                                     ptrain_mask=None, ptest_mask=None, 
                                     sim1=False, sim2=False, sim12=False, verbose=False):
