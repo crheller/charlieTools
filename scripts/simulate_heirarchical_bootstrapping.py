@@ -1,4 +1,6 @@
 """
+This is testing the heirarchachal bootstrapping fns in statistics.py
+
 Simulated nested data, see how hierarchical methods handle it (if you sample evenly, or not...)
 """
 from charlieTools import statistics as stats
@@ -18,9 +20,9 @@ sd = 0.08          # Variability of this value
 # under null hypothesis, do we get false positives with either method?
 trueDiff = 0
 sd = 0.1
-plot = False
+plot = True
 
-nSimulations = 1000
+nSimulations = 10
 fp_even = []      # count number of false positives
 fp_weighted = []  # count number of false positives
 fp_wilcox = []

@@ -64,12 +64,16 @@ def _get_jack_sets(idx):
 
 
 # hierarchachal bootstrap, see: cite biorxiv paper
-def get_bootstrapped_sample(variable, even_sample=True, nboot=1000):
+def get_bootstrapped_sample(variable, even_sample=False, nboot=1000):
     '''
+    Adapted from Saravanan et al. 2020 arXiv
+
     This function performs a hierarchical bootstrap on the data present in 'variable'.
     This function assumes that the data in 'variable' is in the format of a dict where
     the keys represent the higher level (e.g. animal/recording site) and
     the values (1D arrays) represent repetitions/observations within that level (e.g. neurons).
+
+    Only set up to handle two-level data right now 08.21.2020, CRH
     '''
     bootstats = np.zeros(nboot)
     for i in np.arange(nboot):
@@ -82,17 +86,18 @@ def get_bootstrapped_sample(variable, even_sample=True, nboot=1000):
             # for this animal, how many obs to choose from?
             this_n_range = variable[k].shape[0]
             if even_sample:
-                rand_lev2 = np.random.choice(this_n_range, num_lev2)
+                rand_lev2 = np.random.choice(this_n_range, num_lev2, replace=True)
             else:
-                rand_lev2 = np.random.choice(this_n_range, this_n_range)
-
+                rand_lev2 = np.random.choice(this_n_range, this_n_range, replace=True)
+            
             temp.extend(variable[k][rand_lev2].tolist())   # k is saying which animal, rand_lev2 are the observations from this animal
 
         #Note that this is the step at which actual computation is performed. In all cases for these simulations
         #we are only interested in the mean. But as elaborated in the text, this method can be extended to 
         #several other metrics of interest. They would be computed here:
-        bootstats[i] = np.mean(np.concatenate(temp))
-        
+        #bootstats[i] = np.mean(np.concatenate(temp))
+        bootstats[i] = np.mean(temp)
+
     return bootstats
 
 
