@@ -31,7 +31,7 @@ def psth(r, chan, epochs=None, mask=None, ep_dur=None, cmap=None, prestim=None, 
         _, ax = plt.subplots(1, 1, figsize=(6, 4))
     
     if cmap is None:
-        cmap = 'Blues'
+        cmap = 'tab10'
     colors = plt.cm.get_cmap(cmap, len(epochs))
     for i, e in enumerate(epochs):
         resp = d[e]

@@ -52,7 +52,7 @@ class DecodingResults():
             self.unique_subspace_dims = df.n_components.unique().tolist()
 
             # get df columns
-            self.numeric_keys = df.select_dtypes(include=['float64']).columns
+            self.numeric_keys = df.select_dtypes(include=['float32', 'float64']).columns
             self.object_keys = df.select_dtypes(include=['object']).columns
 
             # get number of jacknnifes
@@ -321,14 +321,40 @@ class DecodingResults():
             pickle.dump(self, handle, protocol=pickle.HIGHEST_PROTOCOL)
         log.info('Success!')
 
-    def load_results(self, fn):
-        if not os.path.isfile(fn):
+    def load_results(self, fn, cache_path=None, recache=False):
+        if (not os.path.isfile(fn)) & (cache_path is None):
             raise FileNotFoundError
 
-        log.info("loading pickle from {}".format(fn))
-        with open(fn, 'rb') as handle:
-            data = pickle.load(handle)
-        return data
+        # look for locally cached results
+        if cache_path is not None:
+            cache_file = os.path.join(cache_path, os.path.sep.join(fn.split(os.path.sep)[-4:]))
+        
+            if os.path.isfile(cache_file) & (recache==False):
+                log.info("loading pickle from {}".format(cache_file))
+                with open(fn, 'rb') as handle:
+                    data = pickle.load(handle)
+                return data
+
+            if (not os.path.isfile(cache_file)) | recache:
+                # load fn, then cache it
+                log.info("loading pickle from {}".format(fn))
+                with open(fn, 'rb') as handle:
+                    data = pickle.load(handle)
+                log.info("caching pickle to {0}".format(cache_file))
+                try:
+                    with open(cache_file, 'wb') as handle:
+                        pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                except FileNotFoundError:
+                    os.mkdir(os.path.split(cache_file)[0])
+                    with open(cache_file, 'wb') as handle:
+                        pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+                return data
+        else:
+            log.info("loading pickle from {}".format(fn))
+            with open(fn, 'rb') as handle:
+                data = pickle.load(handle)
+            return data
 
     def save_json(self, fn):
         log.info("json serializing DecodingResults object to {}".format(fn))
@@ -1034,74 +1060,74 @@ def do_pls_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ptrain_mask=N
 
 
 def cast_dtypes(df):
-    dtypes = {'dp_opt_test': 'float64',
-              'dp_diag_test': 'float64',
+    dtypes = {'dp_opt_test': 'float32',
+              'dp_diag_test': 'float32',
               'wopt_test': 'object',
               'wdiag_test': 'object',
-              'var_explained_test': 'float64',
+              'var_explained_test': 'float32',
               'evals_test': 'object',
               'evecs_test': 'object',
-              'evec_sim_test': 'float64',
+              'evec_sim_test': 'float32',
               'dU_test': 'object',
-              'dp_opt_train': 'float64',
-              'dp_diag_train': 'float64',
+              'dp_opt_train': 'float32',
+              'dp_diag_train': 'float32',
               'wopt_train': 'object',
               'wdiag_train': 'object',
-              'var_explained_train': 'float64',
+              'var_explained_train': 'float32',
               'evals_train': 'object',
               'evecs_train': 'object',
-              'evec_sim_train': 'float64',
+              'evec_sim_train': 'float32',
               'dU_train': 'object',
-              'dU_mag_test': 'float64',
+              'dU_mag_test': 'float32',
               'dU_dot_evec_test': 'object',
-              'cos_dU_wopt_test': 'float64',
+              'cos_dU_wopt_test': 'float32',
               'dU_dot_evec_sq_test': 'object',
               'evec_snr_test': 'object', 
               'cos_dU_evec_test': 'object',
-              'dU_mag_train': 'float64',
+              'dU_mag_train': 'float32',
               'dU_dot_evec_train': 'object',
-              'cos_dU_wopt_train': 'float64',
+              'cos_dU_wopt_train': 'float32',
               'dU_dot_evec_sq_train': 'object',
               'evec_snr_train': 'object', 
               'cos_dU_evec_train': 'object',
-              'beta1_dot_dU': 'float64',
-              'beta2_dot_dU': 'float64',
-              'beta1_dot_tdr2': 'float64',
-              'beta2_dot_tdr2': 'float64',
-              'beta1_dot_wopt': 'float64',
-              'beta2_dot_wopt': 'float64',
-              'beta1_lambda': 'float64',
-              'beta2_lambda': 'float64',
-              'beta1_mag': 'float64',
-              'beta2_mag': 'float64',
-              'dU_dot_beta1_sq': 'float64',
-              'dU_dot_beta2_sq':'float64',
-              'beta1_snr':'float64',
-              'beta2_snr':  'float64',
-              'cos_dU_beta1': 'float64',
-              'cos_dU_beta2': 'float64',
+              'beta1_dot_dU': 'float32',
+              'beta2_dot_dU': 'float32',
+              'beta1_dot_tdr2': 'float32',
+              'beta2_dot_tdr2': 'float32',
+              'beta1_dot_wopt': 'float32',
+              'beta2_dot_wopt': 'float32',
+              'beta1_lambda': 'float32',
+              'beta2_lambda': 'float32',
+              'beta1_mag': 'float32',
+              'beta2_mag': 'float32',
+              'dU_dot_beta1_sq': 'float32',
+              'dU_dot_beta2_sq':'float32',
+              'beta1_snr':'float32',
+              'beta2_snr':  'float32',
+              'cos_dU_beta1': 'float32',
+              'cos_dU_beta2': 'float32',
               'dU_all': 'object',
               'wopt_all': 'object',
               'evecs_all': 'object',
               'dU_all_test': 'object',
               'evecs_all_test': 'object',
-              'bp_dp': 'float64',
+              'bp_dp': 'float32',
               'bp_evals': 'object',
-              'bp_dU_mag': 'float64',
+              'bp_dU_mag': 'float32',
               'bp_dU_dot_evec': 'object',
-              'bp_cos_dU_wopt': 'float64',
+              'bp_cos_dU_wopt': 'float32',
               'bp_dU_dot_evec_sq': 'object',
               'bp_evec_snr': 'object',
               'bp_cos_dU_evec': 'object',
-              'sp_dp': 'float64',
+              'sp_dp': 'float32',
               'sp_evals': 'object',
-              'sp_dU_mag': 'float64',
+              'sp_dU_mag': 'float32',
               'sp_dU_dot_evec': 'object',
-              'sp_cos_dU_wopt': 'float64',
+              'sp_cos_dU_wopt': 'float32',
               'sp_dU_dot_evec_sq': 'object',
               'sp_evec_snr': 'object',
               'sp_cos_dU_evec': 'object',
-              'mean_pupil_range': 'float64',
+              'mean_pupil_range': 'float32',
               'category': 'category',
               'jack_idx': 'category',
               'n_components': 'category',

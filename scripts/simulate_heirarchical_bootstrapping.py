@@ -13,16 +13,13 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 np.random.seed(123)
-# values taken from computing mean / sd over all pairs of cells 
-trueDiff = 0.009   # True mean difference in noise corr. for a pair of cells
-sd = 0.08          # Variability of this value
 
-# under null hypothesis, do we get false positives with either method?
+# under null hypothesis, do we get false positives with various methods?
 trueDiff = 0
 sd = 0.1
-plot = True
+plot = False
 
-nSimulations = 10
+nSimulations = 1000
 fp_even = []      # count number of false positives
 fp_weighted = []  # count number of false positives
 fp_wilcox = []
