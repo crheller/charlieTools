@@ -743,6 +743,7 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
         # initalize arrays to hold results for each loocv step
         ndim = 2
         if n_additional_axes is not None: ndim += n_additional_axes
+        # overall results
         tdr_dp         = np.zeros(X.shape[1])
         tdr_dp_diag    = np.zeros(X.shape[1])
         tdr_wopt       = np.zeros((ndim, X.shape[1]))
@@ -760,9 +761,15 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
         wopt_all       = np.zeros((X.shape[0], X.shape[1]))
         evecs_all      = np.zeros((X.shape[0], ndim, X.shape[1]))
 
-        # init arrays to hold projected points
-        popt = np.zeros((X.shape[1], X.shape[1]))
-        pdiag = np.zeros((X.shape[1], X.shape[1]))
+        # beta1 results
+
+        # beta2 results
+
+        # big/small pupil results
+
+        # init arrays to hold projected points for "test" dprime calculations
+        popt = np.zeros((2, X.shape[1]))
+        pdiag = np.zeros((2, X.shape[1]))
 
         for tr in np.arange(0, X.shape[1]):
             trials = np.array([i for i in np.arange(0, X.shape[1]) if i!=tr])
@@ -795,8 +802,8 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
                                     compute_dprime(x_tdr[:, :, 0], x_tdr[:, :, 1], diag=True)
 
             # now, project left out test point into TDR space and onto decoding axes
-            popt[:, tr] = [(_X[:, :, 0] @ tdr.weights) @ tdr_wopt, (_X[:, :, 1] @ tdr.weights) @ tdr_wopt 
-            pdiag[:, tr] = [(_X[:, :, 0] @ tdr.weights) @ tdr_diag, (_X[:, :, 1] @ tdr.weights) @ tdr_diag 
+            popt[:, tr] = [(_X[:, :, 0] @ tdr.weights) @ tdr_wopt, (_X[:, :, 1] @ tdr.weights) @ tdr_wopt] 
+            pdiag[:, tr] = [(_X[:, :, 0] @ tdr.weights) @ tdr_diag, (_X[:, :, 1] @ tdr.weights) @ tdr_diag]
 
             # caculate additional metrics
             dU_mag[tr]            = np.linalg.norm(tdr_dU[:, tr])
