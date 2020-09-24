@@ -45,4 +45,4 @@ def get_tar_freqs(targets):
     """
     return list of target freqs
     """
-    return [int(t.split('+')[0]) for t in targets]
+    return [int(t.split('+')[0].split('_')[-1]) for t in targets]

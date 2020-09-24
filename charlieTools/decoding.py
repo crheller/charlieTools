@@ -136,8 +136,8 @@ def _dprime_diag(A, B):
         u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
         return np.nan, wopt_nan, evals_nan, evecs_nan, np.nan, u_vec_nan
 
-    dp2 = (numerator / denominator).squeeze()
-
+    dp2 = float((numerator / denominator).squeeze())
+    
     evals, evecs = np.linalg.eig(usig)
     # make sure evals / evecs are sorted
     idx_sort = np.argsort(evals)[::-1]
