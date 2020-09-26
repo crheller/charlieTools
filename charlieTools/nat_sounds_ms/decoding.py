@@ -412,7 +412,8 @@ def unit_vectors(x):
     """
     xnew = x.copy()
     for v in range(x.shape[-1]):
-        xnew[:, v] = x[:, v] / np.linalg.norm(x[:, v])
+        if np.linalg.norm(x[:, v]) > 0:
+            xnew[:, v] = x[:, v] / np.linalg.norm(x[:, v])
     return xnew
 
 
@@ -744,36 +745,70 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
         ndim = 2
         if n_additional_axes is not None: ndim += n_additional_axes
         # overall results
-        tdr_dp         = np.zeros(X.shape[1])
-        tdr_dp_diag    = np.zeros(X.shape[1])
-        tdr_wopt       = np.zeros((ndim, X.shape[1]))
-        tdr_evals      = np.zeros((ndim, X.shape[1]))
-        tdr_evecs      = np.zeros((ndim, ndim, X.shape[1]))
-        evec_sim       = np.zeros(X.shape[1])
-        tdr_dU         = np.zeros((ndim, X.shape[1]))
-        dU_mag         = np.zeros(X.shape[1])
-        dU_dot_evec    = np.zeros((ndim, X.shape[1]))
-        cos_dU_wopt    = np.zeros(X.shape[1])
-        dU_dot_evec_sq = np.zeros(X.shape[1])
-        evec_snr       = np.zeros((ndim, X.shape[1]))
-        cos_dU_evec    = np.zeros((ndim, X.shape[1])) 
-        dU_all         = np.zeros((X.shape[0], X.shape[1]))
-        wopt_all       = np.zeros((X.shape[0], X.shape[1]))
-        evecs_all      = np.zeros((X.shape[0], ndim, X.shape[1]))
+        tdr_dp         = np.zeros(nreps)
+        tdr_dp_diag    = np.zeros(nreps)
+        tdr_wopt       = np.zeros((ndim, nreps))
+        tdr_evals      = np.zeros((ndim, nreps))
+        tdr_evecs      = np.zeros((ndim, ndim, nreps))
+        evec_sim       = np.zeros(nreps)
+        tdr_dU         = np.zeros((ndim, nreps))
+        dU_mag         = np.zeros(nreps)
+        dU_dot_evec    = np.zeros((ndim, nreps))
+        cos_dU_wopt    = np.zeros(nreps)
+        dU_dot_evec_sq = np.zeros((ndim, nreps))
+        evec_snr       = np.zeros((ndim, nreps))
+        cos_dU_evec    = np.zeros((ndim, nreps)) 
+        dU_all         = np.zeros((X.shape[0], nreps))
+        wopt_all       = np.zeros((X.shape[0], nreps))
+        evecs_all      = np.zeros((X.shape[0], ndim, nreps))
 
         # beta1 results
+        # not currently using these, don't save...
 
         # beta2 results
+        beta2_dU        = np.zeros(nreps)
+        beta2_tdr2      = np.zeros(nreps)
+        beta2_wopt      = np.zeros(nreps)
+        beta2_tdr       = np.zeros((ndim, nreps))
+        beta2_mag       = np.zeros(nreps)
+        beta2_lambda    = np.zeros(nreps)
+        dU_dot_beta2_sq = np.zeros(nreps)
+        beta2_snr       = np.zeros(nreps)
+        dU_dot_beta2    = np.zeros(nreps)
 
         # big/small pupil results
+        bp_dU             = np.zeros((ndim, nreps))
+        sp_dU             = np.zeros((ndim, nreps))
+        bp_lambda         = np.zeros((ndim, nreps))
+        sp_lambda         = np.zeros((ndim, nreps)) 
+        bp_dU_mag         = np.zeros(nreps) 
+        bp_dU_dot_evec    = np.zeros((ndim, nreps))  
+        bp_cos_dU_wopt    = np.zeros(nreps)  
+        bp_dU_dot_evec_sq = np.zeros((ndim, nreps)) 
+        bp_evec_snr       = np.zeros((ndim, nreps)) 
+        bp_cos_dU_evec    = np.zeros((ndim, nreps))  
+        sp_dU_mag         = np.zeros(nreps) 
+        sp_dU_dot_evec    = np.zeros((ndim, nreps))
+        sp_cos_dU_wopt    = np.zeros(nreps)  
+        sp_dU_dot_evec_sq = np.zeros((ndim, nreps))  
+        sp_evec_snr       = np.zeros((ndim, nreps)) 
+        sp_cos_dU_evec    = np.zeros((ndim, nreps))  
 
         # init arrays to hold projected points for "test" dprime calculations
-        popt = np.zeros((2, X.shape[1]))
-        pdiag = np.zeros((2, X.shape[1]))
+        popt = np.zeros((2, nreps))
+        pdiag = np.zeros((2, nreps))
 
-        for tr in np.arange(0, X.shape[1]):
-            trials = np.array([i for i in np.arange(0, X.shape[1]) if i!=tr])
-            _X = X[:, trials, :]
+        # For big/small, will remove nans for these, since each left out trial can be large or small, not both.
+        popt_bp  = np.nan * np.zeros((2, nreps))
+        popt_sp  = np.nan * np.zeros((2, nreps))
+        pdiag_bp = np.nan * np.zeros((2, nreps))
+        pdiag_sp = np.nan * np.zeros((2, nreps))
+
+        xfold = nat_preproc.fold_X(X, nreps=nreps, nstim=2, nbins=1).squeeze()
+        for tr in np.arange(0, xfold.shape[1]):
+            trials = np.array([i for i in np.arange(0, xfold.shape[1]) if i!=tr])
+            _xfold = xfold[:, trials, :]
+            _X = nat_preproc.flatten_X(_xfold[:, :, :, np.newaxis])
             tdr = dr.TDR(tdr2_init=tdr2_axis, n_additional_axes=n_additional_axes)
 
             if tdr_data is None:
@@ -786,7 +821,7 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
 
             x_tdr = (_X.T @ tdr_weights.T).T
 
-            x_tdr = nat_preproc.fold_X(x_tdr, nreps=nreps, nstim=2, nbins=1).squeeze()
+            x_tdr = nat_preproc.fold_X(x_tdr, nreps=nreps-1, nstim=2, nbins=1).squeeze()
 
             # perform decoding analysis (this is so that decoding axis is always defined 
             # using the raw data, not simulated data)
@@ -794,7 +829,7 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
             # for each trial (rep) do analysis
             tdr_var = np.var(x_tdr.T @ tdr_weights)  / np.var(_X)
 
-            tdr_dp[tr], tdr_wopt[:, tr], tdr_evals[:, tr], tdr_evecs[:, :, tr], evec_sim[tr], tdr_dU[:, tr] = \
+            tdr_dp[tr], tdr_wopt[:, [tr]], tdr_evals[:, tr], tdr_evecs[:, :, tr], evec_sim[tr], tdr_dU[:, tr] = \
                                     compute_dprime(x_tdr[:, :, 0], x_tdr[:, :, 1])
 
             # compute dprime metrics diag decoder
@@ -802,16 +837,17 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
                                     compute_dprime(x_tdr[:, :, 0], x_tdr[:, :, 1], diag=True)
 
             # now, project left out test point into TDR space and onto decoding axes
-            popt[:, tr] = [(_X[:, :, 0] @ tdr.weights) @ tdr_wopt, (_X[:, :, 1] @ tdr.weights) @ tdr_wopt] 
-            pdiag[:, tr] = [(_X[:, :, 0] @ tdr.weights) @ tdr_diag, (_X[:, :, 1] @ tdr.weights) @ tdr_diag]
-
+            popt[:, tr] = [(xfold[:, [tr], 0].T @ tdr.weights.T).dot(tdr_wopt[:, [tr]])[0][0], \
+                                   (xfold[:, [tr], 1].T @ tdr.weights.T).dot(tdr_wopt[:, [tr]])[0][0]]
+            pdiag[:, tr] = [(xfold[:, [tr], 0].T @ tdr.weights.T).dot(tdr_diag)[0][0], \
+                                   (xfold[:, [tr], 1].T @ tdr.weights.T).dot(tdr_diag)[0][0]]
             # caculate additional metrics
             dU_mag[tr]            = np.linalg.norm(tdr_dU[:, tr])
             dU_dot_evec[:, tr]    = tdr_dU[:, tr].dot(tdr_evecs[:, :, tr])
-            cos_dU_wopt[tr]       = abs(unit_vectors(tdr_dU[:, tr].T).T.dot(unit_vectors(tdr_wopt[:, tr])))
+            cos_dU_wopt[tr]       = abs(unit_vectors(tdr_dU[:, [tr]].T).dot(unit_vectors(tdr_wopt[:, [tr]])))[0][0]
             dU_dot_evec_sq[:, tr] = tdr_dU[:, tr].dot(tdr_evecs[:, :, tr]) ** 2
             evec_snr[:, tr]       = dU_dot_evec_sq[:, tr] / tdr_evals[:, tr]
-            cos_dU_evec[:, tr]    = abs(unit_vectors(tdr_dU[:, tr].T).T.dot(tdr_evecs[:, :, tr]))
+            cos_dU_evec[:, tr]    = abs(unit_vectors(tdr_dU[:, [tr]].T).dot(tdr_evecs[:, :, tr]))[0][0]
 
             # project eigenvectors, dU, and wopt back into N-dimensional space
             # in order to investigate which neurons contribute to signal vs. noise
@@ -820,7 +856,9 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
             evecs_all[:, :, tr] = tdr_evecs[:, :, tr].dot(tdr.weights).T
 
             if beta1 is not None:
-                wopt_norm = wopt_all / np.linalg.norm(wopt_all)
+                pass
+                '''
+                wopt_norm = wopt_all[:, tr] / np.linalg.norm(wopt_all[:, tr])
                 beta1_dU = abs(beta1.T.dot(tdr_weights[0, :])[0])
                 beta1_tdr2 = abs(beta1.T.dot(tdr_weights[1, :])[0])
                 beta1_wopt = abs(beta1.T.dot(wopt_norm)[0][0])
@@ -829,68 +867,78 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
                 beta1_tdr = beta1_tdr / beta1_mag
 
                 # center xtest for each stim
-                xcenter = xtest_tdr - xtest_tdr.mean(axis=1, keepdims=True)
+                xcenter = x_tdr - x_tdr.mean(axis=1, keepdims=True)
                 xcenter = xcenter.reshape(2+n_additional_axes, -1)    
 
                 beta1_lambda = np.var(xcenter.T.dot(beta1_tdr.T)) # @ beta1_tdr)
-                dU_dot_beta1_sq = tdr_dU_test.dot(beta1_tdr.T)[0][0]**2
+                dU_dot_beta1_sq = tdr_dU[:, tr].dot(beta1_tdr.T)[0][0]**2
                 beta1_snr = dU_dot_beta1_sq / beta1_lambda
 
-                dU_dot_beta1 = abs((tdr_dU_test / np.linalg.norm(tdr_dU_test)).dot(beta1_tdr.T))[0][0]
-
+                dU_dot_beta1 = abs((tdr_dU[:, tr] / np.linalg.norm(tdr_dU[:, tr])).dot(beta1_tdr.T))[0][0]
+                '''
             if beta2 is not None:
-                wopt_norm = wopt_all / np.linalg.norm(wopt_all)
-                beta2_dU = abs(beta2.T.dot(tdr_weights[0, :])[0])
-                beta2_tdr2 = abs(beta2.T.dot(tdr_weights[1, :])[0])
-                beta2_wopt = abs(beta2.T.dot(wopt_norm)[0][0])
-                beta2_tdr = beta2.T.dot(tdr_weights.T)   
-                beta2_mag = np.linalg.norm(beta2_tdr) 
-                beta2_tdr = beta2_tdr / beta2_mag
+                wopt_norm = wopt_all[:, tr] / np.linalg.norm(wopt_all[:, tr])
+                beta2_dU[tr] = abs(beta2.T.dot(tdr_weights[0, :])[0])
+                beta2_tdr2[tr] = abs(beta2.T.dot(tdr_weights[1, :])[0])
+                beta2_wopt[tr] = abs(beta2.T.dot(wopt_norm)[0])
+                _beta2_tdr = beta2.T.dot(tdr_weights.T)   
+                beta2_mag[tr] = np.linalg.norm(_beta2_tdr) 
+                beta2_tdr[:, tr] = _beta2_tdr / beta2_mag[tr]
                 
                 # center xtest for each stim
-                xcenter = xtest_tdr - xtest_tdr.mean(axis=1, keepdims=True)
+                xcenter = x_tdr - x_tdr.mean(axis=1, keepdims=True)
                 xcenter = xcenter.reshape(2+n_additional_axes, -1)    
 
-                beta2_lambda = np.var(xcenter.T.dot(beta2_tdr.T)) # @ beta2_tdr)
-                dU_dot_beta2_sq = tdr_dU_test.dot(beta2_tdr.T)[0][0]**2
-                beta2_snr = dU_dot_beta2_sq / beta2_lambda
+                beta2_lambda[tr] = np.var(xcenter.T.dot(beta2_tdr[:, tr].T)) # @ beta2_tdr)
+                dU_dot_beta2_sq[tr] = tdr_dU[:, tr].dot(beta2_tdr[:, tr].T)**2
+                beta2_snr[tr] = dU_dot_beta2_sq[tr] / beta2_lambda[tr]
 
-                dU_dot_beta2 = abs((tdr_dU_test / np.linalg.norm(tdr_dU_test)).dot(beta2_tdr.T))[0][0]
+                dU_dot_beta2[tr] = abs((tdr_dU[:, tr] / np.linalg.norm(tdr_dU[:, tr])).dot(beta2_tdr[:, tr].T))
 
             # deal with large / small pupil data
             if pmask is not None:
-                # perform analysis for big / small pupil data too. Only on test set.
-                A_bp = xtest_tdr[:, ptest_mask[0, :, 0], 0]
-                A_sp = xtest_tdr[:, ~ptest_mask[0, :, 0], 0]
-                B_bp = xtest_tdr[:, ptest_mask[0, :, 1], 1]
-                B_sp = xtest_tdr[:, ~ptest_mask[0, :, 1], 1]
+                # perform analysis for big / small pupil data too.
+
+                # use the "train" data in order to estimate angles etc. in diff pupil states.
+                # For dprime, only need to project the left out point onto the axis and label as big / small
+                A_bp = x_tdr[:, pmask[0, trials, 0], 0]
+                A_sp = x_tdr[:, ~pmask[0, trials, 0], 0]
+                B_bp = x_tdr[:, pmask[0, trials, 1], 1]
+                B_sp = x_tdr[:, ~pmask[0, trials, 1], 1]
 
                 # get dprime / dU
-                bp_dprime, _, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=tdr_wopt_train)
-                sp_dprime, _, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=tdr_wopt_train)
+                _, _, _, _, _, bp_dU[:, tr] = compute_dprime(A_bp, B_bp, wopt=tdr_wopt[:, [tr]])
+                _, _, _, _, _, sp_dU[:, tr] = compute_dprime(A_sp, B_sp, wopt=tdr_wopt[:, [tr]])
+
+                # project single point
+                if pmask[0, tr, 0]:
+                    popt_bp[:, tr] = popt[:, tr]
+                    pdiag_bp[:, tr] = pdiag[:, tr]
+                else:
+                    popt_sp[:, tr] = popt[:, tr]
+                    pdiag_sp[:, tr] = pdiag[:, tr]
 
                 # get pupil-dependent variance along the prinicple noise axes (analogous to lambda)
                 # point is to compare the variance along these PCs between large / small pupil
                 big = np.concatenate([A_bp, B_bp], axis=-1)
                 small = np.concatenate([A_sp, B_sp], axis=-1)
-                bp_lambda = np.var(big.T.dot(tdr_evecs_test), axis=0)
-                sp_lambda = np.var(small.T.dot(tdr_evecs_test), axis=0)
+                bp_lambda[:, tr] = np.var(big.T.dot(tdr_evecs[:, :, tr]), axis=0)
+                sp_lambda[:, tr] = np.var(small.T.dot(tdr_evecs[:, :, tr]), axis=0)
 
                 # compute additional metrics
-                bp_dU_mag         = np.linalg.norm(bp_dU)
-                bp_dU_dot_evec    = bp_dU.dot(tdr_evecs_test)
-                bp_cos_dU_wopt    = abs(unit_vectors(bp_dU.T).T.dot(unit_vectors(tdr_wopt_train)))
-                bp_dU_dot_evec_sq = bp_dU.dot(tdr_evecs_test) ** 2
-                bp_evec_snr       = bp_dU_dot_evec_sq / bp_lambda
-                bp_cos_dU_evec    = abs(unit_vectors(bp_dU.T).T.dot(tdr_evecs_test))
+                bp_dU_mag[tr]            = np.linalg.norm(bp_dU[:, tr])
+                bp_dU_dot_evec[:, tr]    = bp_dU[:, tr].dot(tdr_evecs[:, :, tr])
+                bp_cos_dU_wopt[tr]       = abs(unit_vectors(bp_dU[:, [tr]].T).dot(unit_vectors(tdr_wopt[:, [tr]])))[0][0]
+                bp_dU_dot_evec_sq[:, tr] = bp_dU[:, tr].dot(tdr_evecs[:, :, tr]) ** 2
+                bp_evec_snr[:, tr]       = bp_dU_dot_evec_sq[:, tr] / bp_lambda[:, tr]
+                bp_cos_dU_evec[:, tr]    = abs(unit_vectors(bp_dU[:, [tr]].T).dot(tdr_evecs[:, :, tr]))
 
-                sp_dU_mag         = np.linalg.norm(sp_dU)
-                sp_dU_dot_evec    = sp_dU.dot(tdr_evecs_test)
-                sp_cos_dU_wopt    = abs(unit_vectors(sp_dU.T).T.dot(unit_vectors(tdr_wopt_train)))
-                sp_dU_dot_evec_sq = sp_dU.dot(tdr_evecs_test) ** 2
-                sp_evec_snr       = sp_dU_dot_evec_sq / sp_lambda
-                sp_cos_dU_evec    = abs(unit_vectors(sp_dU.T).T.dot(tdr_evecs_test))
-
+                sp_dU_mag[tr]            = np.linalg.norm(sp_dU[:, tr])
+                sp_dU_dot_evec[:, tr]    = sp_dU[:, tr].dot(tdr_evecs[:, :, tr])
+                sp_cos_dU_wopt[tr]       = abs(unit_vectors(sp_dU[:, [tr]].T).dot(unit_vectors(tdr_wopt[:, [tr]])))
+                sp_dU_dot_evec_sq[:, tr] = sp_dU[:, tr].dot(tdr_evecs[:, :, tr]) ** 2
+                sp_evec_snr[:, tr]       = sp_dU_dot_evec_sq[:, tr] / sp_lambda[:, tr]
+                sp_cos_dU_evec[:, tr]    = abs(unit_vectors(sp_dU[:, [tr]].T).dot(tdr_evecs[:, :, tr]))
 
         # compute test dprimes using the projected left out points from each method
         dptest = ((np.mean(popt[0, :]) - np.mean(popt[1, :])) / np.sqrt(np.mean([np.var(popt[0, :]), np.var(popt[1, :])]))) ** 2
@@ -932,46 +980,58 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
         }
 
         if beta1 is not None:
-            results.update({
-                'beta1_dot_dU': beta1_dU,
-                'beta1_dot_tdr2': beta1_tdr2,
-                'beta1_dot_wopt': beta1_wopt,
-                'beta1_lambda': beta1_lambda,
-                'beta1_mag': beta1_mag,
-                'dU_dot_beta1_sq': dU_dot_beta1_sq,
-                'beta1_snr':  beta1_snr,
-                'cos_dU_beta1': dU_dot_beta1
-            })  
+            pass
+            #results.update({
+            #    'beta1_dot_dU': beta1_dU,
+            #    'beta1_dot_tdr2': beta1_tdr2,
+            #    'beta1_dot_wopt': beta1_wopt,
+            #    'beta1_lambda': beta1_lambda,
+            #    'beta1_mag': beta1_mag,
+            #    'dU_dot_beta1_sq': dU_dot_beta1_sq,
+            #    'beta1_snr':  beta1_snr,
+            #    'cos_dU_beta1': dU_dot_beta1
+            #})  
 
         if beta2 is not None:
             results.update({
-                'beta2_dot_dU': beta2_dU,
-                'beta2_dot_tdr2': beta2_tdr2,
-                'beta2_dot_wopt': beta2_wopt,
-                'beta2_lambda': beta2_lambda,
-                'beta2_mag': beta2_mag,
-                'dU_dot_beta2_sq': dU_dot_beta2_sq,
-                'beta2_snr':  beta2_snr,
-                'cos_dU_beta2': dU_dot_beta2
+                'beta2_dot_dU': np.mean(beta2_dU, axis=-1),
+                'beta2_dot_tdr2': np.mean(beta2_tdr2, axis=-1),
+                'beta2_dot_wopt': np.mean(beta2_wopt, axis=-1),
+                'beta2_lambda': np.mean(beta2_lambda, axis=-1),
+                'beta2_mag': np.mean(beta2_mag, axis=-1),
+                'dU_dot_beta2_sq': np.mean(dU_dot_beta2_sq, axis=-1),
+                'beta2_snr':  np.mean(beta2_snr, axis=-1),
+                'cos_dU_beta2': np.mean(dU_dot_beta2, axis=-1)
             })  
+        
         if pmask is not None:
+            bp_dp = ((np.mean(popt_bp[0, ~np.isnan(popt_bp[0, :])]) - np.mean(popt_bp[1, ~np.isnan(popt_bp[0, :])])) / \
+                    np.sqrt(np.mean([np.var(popt_bp[0, ~np.isnan(popt_bp[0, :])]), np.var(popt_bp[1, ~np.isnan(popt_bp[0, :])])]))) ** 2
+            bp_dp_diag = ((np.mean(pdiag_bp[0, ~np.isnan(popt_bp[0, :])]) - np.mean(pdiag_bp[1, ~np.isnan(popt_bp[0, :])])) / \
+                    np.sqrt(np.mean([np.var(pdiag_bp[0, ~np.isnan(popt_bp[0, :])]), np.var(pdiag_bp[1, ~np.isnan(popt_bp[0, :])])]))) ** 2
+            sp_dp = ((np.mean(popt_sp[0, ~np.isnan(popt_sp[0, :])]) - np.mean(popt_sp[1, ~np.isnan(popt_sp[0, :])])) / \
+                    np.sqrt(np.mean([np.var(popt_sp[0, ~np.isnan(popt_sp[0, :])]), np.var(popt_sp[1, ~np.isnan(popt_sp[0, :])])]))) ** 2
+            sp_dp_diag = ((np.mean(pdiag_sp[0, ~np.isnan(popt_sp[0, :])]) - np.mean(pdiag_sp[1, ~np.isnan(popt_sp[0, :])])) / \
+                    np.sqrt(np.mean([np.var(pdiag_sp[0, ~np.isnan(popt_sp[0, :])]), np.var(pdiag_sp[1, ~np.isnan(popt_sp[0, :])])]))) ** 2
             results.update({
-                'bp_dp': bp_dprime,
-                'bp_evals': bp_lambda,
-                'bp_dU_mag': bp_dU_mag,
-                'bp_dU_dot_evec': bp_dU_dot_evec,
-                'bp_cos_dU_wopt': bp_cos_dU_wopt,
-                'bp_dU_dot_evec_sq': bp_dU_dot_evec_sq,
-                'bp_evec_snr': bp_evec_snr,
-                'bp_cos_dU_evec': bp_cos_dU_evec,
-                'sp_dp': sp_dprime,
-                'sp_evals': sp_lambda,
-                'sp_dU_mag': sp_dU_mag,
-                'sp_dU_dot_evec': sp_dU_dot_evec,
-                'sp_cos_dU_wopt': sp_cos_dU_wopt,
-                'sp_dU_dot_evec_sq': sp_dU_dot_evec_sq,
-                'sp_evec_snr': sp_evec_snr,
-                'sp_cos_dU_evec': sp_cos_dU_evec
+                'bp_dp': bp_dp,
+                'bp_dp_diag': bp_dp_diag,
+                'bp_evals': np.mean(bp_lambda, axis=-1),
+                'bp_dU_mag': np.mean(bp_dU_mag, axis=-1),
+                'bp_dU_dot_evec': np.mean(bp_dU_dot_evec, axis=-1),
+                'bp_cos_dU_wopt': np.mean(bp_cos_dU_wopt, axis=-1),
+                'bp_dU_dot_evec_sq': np.mean(bp_dU_dot_evec_sq, axis=-1),
+                'bp_evec_snr': np.mean(bp_evec_snr, axis=-1),
+                'bp_cos_dU_evec': np.mean(bp_cos_dU_evec, axis=-1),
+                'sp_dp': sp_dp,
+                'sp_dp_diag': sp_dp_diag,
+                'sp_evals': np.mean(sp_lambda, axis=-1),
+                'sp_dU_mag': np.mean(sp_dU_mag, axis=-1),
+                'sp_dU_dot_evec': np.mean(sp_dU_dot_evec, axis=-1),
+                'sp_cos_dU_wopt': np.mean(sp_cos_dU_wopt, axis=-1),
+                'sp_dU_dot_evec_sq': np.mean(sp_dU_dot_evec_sq, axis=-1),
+                'sp_evec_snr': np.mean(sp_evec_snr, axis=-1),
+                'sp_cos_dU_evec': np.mean(sp_cos_dU_evec, axis=-1)
             })
 
         if not verbose:
@@ -1395,6 +1455,7 @@ def cast_dtypes(df):
               'dU_all_test': 'object',
               'evecs_all_test': 'object',
               'bp_dp': 'float32',
+              'bp_dp_diag': 'float32',
               'bp_evals': 'object',
               'bp_dU_mag': 'float32',
               'bp_dU_dot_evec': 'object',
@@ -1403,6 +1464,7 @@ def cast_dtypes(df):
               'bp_evec_snr': 'object',
               'bp_cos_dU_evec': 'object',
               'sp_dp': 'float32',
+              'sp_dp_diag': 'float32',
               'sp_evals': 'object',
               'sp_dU_mag': 'float32',
               'sp_dU_dot_evec': 'object',
