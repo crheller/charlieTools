@@ -845,10 +845,10 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
             # caculate additional metrics
             dU_mag[tr]            = np.linalg.norm(tdr_dU[:, tr])
             dU_dot_evec[:, tr]    = tdr_dU[:, tr].dot(tdr_evecs[:, :, tr])
-            cos_dU_wopt[tr]       = abs(unit_vectors(tdr_dU[:, [tr]].T).dot(unit_vectors(tdr_wopt[:, [tr]])))[0][0]
+            cos_dU_wopt[tr]       = abs(unit_vectors(tdr_dU[:, [tr]]).T @ unit_vectors(tdr_wopt[:, [tr]]))[0][0]
             dU_dot_evec_sq[:, tr] = tdr_dU[:, tr].dot(tdr_evecs[:, :, tr]) ** 2
             evec_snr[:, tr]       = dU_dot_evec_sq[:, tr] / tdr_evals[:, tr]
-            cos_dU_evec[:, tr]    = abs(unit_vectors(tdr_dU[:, [tr]].T).dot(tdr_evecs[:, :, tr]))[0][0]
+            cos_dU_evec[:, tr]    = abs(unit_vectors(tdr_dU[:, [tr]]).T @ tdr_evecs[:, :, tr])
 
             # project eigenvectors, dU, and wopt back into N-dimensional space
             # in order to investigate which neurons contribute to signal vs. noise
@@ -929,17 +929,17 @@ def do_tdr_dprime_analysis_loocv(X, nreps, tdr_data=None, n_additional_axes=0,
                 # compute additional metrics
                 bp_dU_mag[tr]            = np.linalg.norm(bp_dU[:, tr])
                 bp_dU_dot_evec[:, tr]    = bp_dU[:, tr].dot(tdr_evecs[:, :, tr])
-                bp_cos_dU_wopt[tr]       = abs(unit_vectors(bp_dU[:, [tr]].T).dot(unit_vectors(tdr_wopt[:, [tr]])))[0][0]
+                bp_cos_dU_wopt[tr]       = abs(unit_vectors(bp_dU[:, [tr]]).T.dot(unit_vectors(tdr_wopt[:, [tr]])))[0][0]
                 bp_dU_dot_evec_sq[:, tr] = bp_dU[:, tr].dot(tdr_evecs[:, :, tr]) ** 2
                 bp_evec_snr[:, tr]       = bp_dU_dot_evec_sq[:, tr] / bp_lambda[:, tr]
-                bp_cos_dU_evec[:, tr]    = abs(unit_vectors(bp_dU[:, [tr]].T).dot(tdr_evecs[:, :, tr]))
+                bp_cos_dU_evec[:, tr]    = abs(unit_vectors(bp_dU[:, [tr]]).T.dot(tdr_evecs[:, :, tr]))
 
                 sp_dU_mag[tr]            = np.linalg.norm(sp_dU[:, tr])
                 sp_dU_dot_evec[:, tr]    = sp_dU[:, tr].dot(tdr_evecs[:, :, tr])
-                sp_cos_dU_wopt[tr]       = abs(unit_vectors(sp_dU[:, [tr]].T).dot(unit_vectors(tdr_wopt[:, [tr]])))
+                sp_cos_dU_wopt[tr]       = abs(unit_vectors(sp_dU[:, [tr]]).T.dot(unit_vectors(tdr_wopt[:, [tr]])))[0][0]
                 sp_dU_dot_evec_sq[:, tr] = sp_dU[:, tr].dot(tdr_evecs[:, :, tr]) ** 2
                 sp_evec_snr[:, tr]       = sp_dU_dot_evec_sq[:, tr] / sp_lambda[:, tr]
-                sp_cos_dU_evec[:, tr]    = abs(unit_vectors(sp_dU[:, [tr]].T).dot(tdr_evecs[:, :, tr]))
+                sp_cos_dU_evec[:, tr]    = abs(unit_vectors(sp_dU[:, [tr]]).T.dot(tdr_evecs[:, :, tr]))
 
         # compute test dprimes using the projected left out points from each method
         dptest = ((np.mean(popt[0, :]) - np.mean(popt[1, :])) / np.sqrt(np.mean([np.var(popt[0, :]), np.var(popt[1, :])]))) ** 2
