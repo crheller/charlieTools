@@ -653,8 +653,9 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
 
             # get pupil-dependent variance along the prinicple noise axes (analogous to lambda)
             # point is to compare the variance along these PCs between large / small pupil
-            big = np.concatenate([A_bp, B_bp], axis=-1)
-            small = np.concatenate([A_sp, B_sp], axis=-1)
+            # NEED TO CENTER THE DATA FOR THIS!!! UPDATE 10-03-2020, CRH
+            big = np.concatenate([A_bp - A_bp.mean(axis=1, keepdims=True), B_bp - B_bp.mean(axis=1, keepdims=True)], axis=-1)
+            small = np.concatenate([A_sp - A_sp.mean(axis=1, keepdims=True), B_sp - B_sp.mean(axis=1, keepdims=True)], axis=-1)
             bp_lambda = np.var(big.T.dot(tdr_evecs_test), axis=0)
             sp_lambda = np.var(small.T.dot(tdr_evecs_test), axis=0)
 
