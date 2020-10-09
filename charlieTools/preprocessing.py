@@ -245,13 +245,15 @@ def regress_state(rec, state_sigs=['behavior', 'pupil'], regress=None):
                     X = X[:, nonzero_sigs] / X[:, nonzero_sigs].std(axis=0)
                     if len(X.shape) == 1:
                         X = X[:, np.newaxis]
-                    reg.fit(X, y[:, np.newaxis])
-
-                    # figure out regression coefficients
-                    # modification CRH 02/14/2020, always use all state signals
-                    #args = [True if r in regress else False for r in state_sigs]
-                    model_coefs = reg.coef_
-                    y_pred = np.matmul(X, model_coefs.T) + reg.intercept_
+                    if (np.any(np.isnan(y)) | np.any(np.isnan(X))):
+                        log.info(f"Found nans in data for bin {b}, epoch: {e}. Not regressing out pupil")
+                        model_coefs = np.array([0])
+                        intercept = 0
+                    else:
+                        reg.fit(X, y[:, np.newaxis])
+                        model_coefs = reg.coef_
+                        intercept = reg.intercept_
+                    y_pred = np.matmul(X, model_coefs.T) + intercept
                     y_new_residual = y - y_pred.squeeze()
                     r_new[e][:, n, b] = r_psth[e][:, n, b] + y_new_residual
                 else:
