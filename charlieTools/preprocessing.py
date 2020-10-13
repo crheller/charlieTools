@@ -246,8 +246,8 @@ def regress_state(rec, state_sigs=['behavior', 'pupil'], regress=None):
                     if len(X.shape) == 1:
                         X = X[:, np.newaxis]
                     if (np.any(np.isnan(y)) | np.any(np.isnan(X))):
-                        log.info(f"Found nans in data for bin {b}, epoch: {e}. Not regressing out pupil")
-                        model_coefs = np.array([0])
+                        log.info(f"Found nans in data for bin {b}, epoch: {e}. Not regressing out state")
+                        model_coefs = np.zeros(X.shape[-1])
                         intercept = 0
                     else:
                         reg.fit(X, y[:, np.newaxis])
