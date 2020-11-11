@@ -3,6 +3,33 @@ import logging
 
 log = logging.getLogger()
 
+def compute_dprime_noiseFloor(A, B, diag=False, wopt=None, iters=100):
+    np.random.seed(123)
+    dp, wopt, _, _, _, _ = compute_dprime(A, B, diag=diag, wopt=wopt)
+    # project onto decoding axis
+    if wopt != np.nan:
+        import pdb; pdb.set_trace()
+        a = A.T.dot(wopt / np.linalg.norm(wopt)).T 
+        b = B.T.dot(wopt / np.linalg.norm(wopt)).T 
+
+    else:
+        a = A.copy()
+        b = B.copy()
+    d = np.concatenate((a, b), axis=1)
+    shuff_dprime = []
+    for i in range(iters):
+        aidx = np.random.choice(range(0, d.shape[1]), a.shape[1], replace=False)
+        bidx = np.array(list(set(range(0, d.shape[1])).difference(set(aidx))))
+        x = d[:, aidx]
+        y = d[:, np.random.choice(range(0, d.shape[1]), b.shape[1], replace=False)]
+        _dp, _, _, _, _, _ = compute_dprime(x, y)
+        shuff_dprime.append(_dp)
+    shuff_dprime = np.array(shuff_dprime)
+    pvalue = sum(shuff_dprime>=dp) / iters
+    
+    return shuff_dprime, pvalue
+
+
 def compute_dprime(A, B, diag=False, wopt=None):
     """
     Compute discriminability between matrix A and matrix B
@@ -136,8 +163,8 @@ def _dprime_diag(A, B):
         u_vec_nan =  np.nan * np.ones((1, A.shape[0]))
         return np.nan, wopt_nan, evals_nan, evecs_nan, np.nan, u_vec_nan
 
-    dp2 = float((numerator / denominator).squeeze())
-    
+    dp2 = (numerator / denominator).squeeze()
+
     evals, evecs = np.linalg.eig(usig)
     # make sure evals / evecs are sorted
     idx_sort = np.argsort(evals)[::-1]
