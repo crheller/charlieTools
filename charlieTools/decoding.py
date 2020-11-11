@@ -22,7 +22,19 @@ def compute_dprime(A, B, diag=False, wopt=None):
     if A.shape[0] != B.shape[0]:
         raise ValueError("Number of dimensions do not match between conditions")
 
-    if diag:
+    if A.shape[0] == 1:
+        # just compute raw "dprime"
+        num = A.mean() - B.mean()
+        if num == 0:
+            dprime, wopt, evals, evecs, evec_sim, dU = 0, np.nan, np.nan, np.nan, np.nan, 0
+        
+        den = np.sqrt(0.5 * (np.var(A) + np.var(B)))
+        if den == 0:
+            dprime, wopt, evals, evecs, evec_sim, dU = np.inf, np.nan, np.nan, np.nan, np.nan, num
+        
+        dprime, wopt, evals, evecs, evec_sim, dU = ((num / den) ** 2), np.nan, np.nan, np.nan, np.nan, num
+
+    elif diag:
         dprime, wopt, evals, evecs, evec_sim, dU = _dprime_diag(A, B)
 
     else:
