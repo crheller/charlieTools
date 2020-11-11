@@ -21,12 +21,12 @@ def compute_dprime_noiseFloor(A, B, diag=False, wopt=None, iters=100):
         aidx = np.random.choice(range(0, d.shape[1]), a.shape[1], replace=False)
         bidx = np.array(list(set(range(0, d.shape[1])).difference(set(aidx))))
         x = d[:, aidx]
-        y = d[:, np.random.choice(range(0, d.shape[1]), b.shape[1], replace=False)]
+        y = d[:, bidx]
         _dp, _, _, _, _, _ = compute_dprime(x, y)
         shuff_dprime.append(_dp)
     shuff_dprime = np.array(shuff_dprime)
     pvalue = sum(shuff_dprime>=dp) / iters
-    
+
     return shuff_dprime, pvalue
 
 
