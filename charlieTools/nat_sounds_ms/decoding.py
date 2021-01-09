@@ -1636,7 +1636,7 @@ def _dprime_diag(A, B):
 # ================================= Data Loading Utils ========================================
 def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_all=False,
                                  regress_pupil=False, gain_only=False, dc_only=False, deflate_residual_dim=None, 
-                                 var_first_order=True, use_xforms=False, verbose=False):
+                                 var_first_order=True, use_xforms=False, return_epoch_list=False, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
@@ -1713,6 +1713,9 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
     X_sp = nat_preproc.dict_to_X(sp_dict)
     X_pup = nat_preproc.dict_to_X(pup_dict)
 
+    # save epoch names
+    epoch_names = epochs
+
     # make pupil mask
     reps = X_pup.shape[1]
     epochs = X_pup.shape[2]
@@ -1724,6 +1727,8 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
 
     if verbose:
         return X, X_sp, X_pup, pup_mask, X_raw, pup_mask_raw
+    if return_epoch_list:
+        return X, X_sp, X_pup, pup_mask, epoch_names
     else:
         return X, X_sp, X_pup, pup_mask
 

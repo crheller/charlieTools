@@ -7,11 +7,9 @@ def compute_dprime_noiseFloor(A, B, diag=False, wopt=None, iters=100):
     np.random.seed(123)
     dp, wopt, _, _, _, _ = compute_dprime(A, B, diag=diag, wopt=wopt)
     # project onto decoding axis
-    if wopt != np.nan:
-        import pdb; pdb.set_trace()
+    if np.isnan(wopt)==False:
         a = A.T.dot(wopt / np.linalg.norm(wopt)).T 
         b = B.T.dot(wopt / np.linalg.norm(wopt)).T 
-
     else:
         a = A.copy()
         b = B.copy()
