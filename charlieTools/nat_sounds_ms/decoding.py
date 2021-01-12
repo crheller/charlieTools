@@ -309,9 +309,10 @@ class DecodingResults():
             return x
 
         else:
-            newx = x.copy()
-            newcol = [self._slice_array(_x, idx) for _x in x.values]
-            newx[x.index] = pd.Series(newcol)
+            return x.apply(lambda x: x[idx])
+            #newx = x.copy()
+            #newcol = [self._slice_array(_x, idx) for _x in x.values]
+            #newx[x.index] = pd.Series(newcol)
             return newx
 
     
