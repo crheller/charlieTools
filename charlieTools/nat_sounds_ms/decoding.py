@@ -1811,7 +1811,9 @@ def simulate_response(X, pup_mask, sim_first_order=False,
 
 
 def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1', 'dim2'], 
-                        ylim=(None, None), xlim=(None, None), ellipse=False, pup_cmap=False, lv_axis=None, lv_ax_name='LV axis', ax_length=1, ax=None):
+                        ylim=(None, None), xlim=(None, None), ellipse=False, 
+                        pup_cmap=False, lv_axis=None, lv_ax_name='LV axis', ax_length=1, 
+                        ax=None, pup_split=False):
     """
     Given a site / stimulus pair, load data, run dprime analysis on all data for the pair
      (no test / train), plot results
@@ -1870,12 +1872,14 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
         xmask = xmask1 & xmask2
         removed += (xmask==False).sum()
         X = X[:, xmask, :]
+        X_pup = X_pup[:, xmask, :]
     if ylim[1] is not None:
         ymask1 = (X[1, :, :] < ylim[1]).squeeze().sum(axis=-1) == 2
         ymask2 = (X[1, :, :] > ylim[0]).squeeze().sum(axis=-1) == 2
         ymask = ymask1 & ymask2
         removed += (ymask==False).sum()
         X = X[:, ymask, :]
+        X_pup = X_pup[:, ymask, :]
 
     log.info("Removing {0} / {1} reps due to ax limits".format(removed, reps))
 
@@ -1886,7 +1890,15 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     if ax is None:
         f, ax = plt.subplots(1, 1, figsize=(4, 4))
 
-    if pup_cmap:
+    if pup_split:
+        pupmed=np.median(X_pup)
+        puplg=X_pup>=pupmed
+        pupsm=X_pup<pupmed
+        ax.scatter(X[0, puplg[0,:,0], 0], X[1, puplg[0,:,0], 0], s=25, color=colors[0], edgecolor='white')
+        ax.scatter(X[0, puplg[0,:,1], 1], X[1, puplg[0,:,1], 1], s=25, color=colors[1], edgecolor='white')
+        ax.scatter(X[0, pupsm[0,:,0], 0], X[1, pupsm[0,:,0], 0], s=25, color='lightgray', edgecolor='white')
+        ax.scatter(X[0, pupsm[0,:,1], 1], X[1, pupsm[0,:,1], 1], s=25, color='lightgray', edgecolor='white')
+    elif pup_cmap:
         ax.scatter(X[0, :, 0, 0], X[1, :, 0, 0], s=40, c=X_pup[0, :, 0], cmap='Reds', edgecolor='white')
         ax.scatter(X[0, :, 1, 0], X[1, :, 1, 0], s=40, c=X_pup[0, :, 1], cmap='Blues', edgecolor='white')
     else:
@@ -1894,10 +1906,21 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
         ax.scatter(X[0, :, 1], X[1, :, 1], s=25, color=colors[1], edgecolor='white')
 
     if ellipse:
-        e1 = cplt.compute_ellipse(X[0, :, 0], X[1, :, 0])
-        e2 = cplt.compute_ellipse(X[0, :, 1], X[1, :, 1])
-        ax.plot(e1[0], e1[1], lw=2, color=colors[0])
-        ax.plot(e2[0], e2[1], lw=2, color=colors[1])
+        if pup_split:
+            e1 = cplt.compute_ellipse(X[0, puplg[0,:,0], 0], X[1, puplg[0,:,0], 0])
+            e2 = cplt.compute_ellipse(X[0, puplg[0,:,1], 1], X[1, puplg[0,:,1], 1])
+            ax.plot(e1[0], e1[1], lw=2, color=colors[0])
+            ax.plot(e2[0], e2[1], lw=2, color=colors[1])
+            e1 = cplt.compute_ellipse(X[0, pupsm[0,:,0], 0], X[1, pupsm[0,:,0], 0])
+            e2 = cplt.compute_ellipse(X[0, pupsm[0,:,1], 1], X[1, pupsm[0,:,1], 1])
+            ax.plot(e1[0], e1[1], lw=2, color='lightgray')
+            ax.plot(e2[0], e2[1], lw=2, color='lightgray')
+
+        else:
+            e1 = cplt.compute_ellipse(X[0, :, 0], X[1, :, 0])
+            e2 = cplt.compute_ellipse(X[0, :, 1], X[1, :, 1])
+            ax.plot(e1[0], e1[1], lw=2, color=colors[0])
+            ax.plot(e2[0], e2[1], lw=2, color=colors[1])
 
     # plot first noise PC
     # scale evecs for plotting
