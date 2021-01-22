@@ -313,7 +313,7 @@ class DecodingResults():
             #newx = x.copy()
             #newcol = [self._slice_array(_x, idx) for _x in x.values]
             #newx[x.index] = pd.Series(newcol)
-            return newx
+            #return newx
 
     
     def save_pickle(self, fn):
