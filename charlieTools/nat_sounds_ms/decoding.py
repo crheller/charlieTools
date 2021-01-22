@@ -1814,7 +1814,7 @@ def simulate_response(X, pup_mask, sim_first_order=False,
 def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1', 'dim2'], 
                         ylim=(None, None), xlim=(None, None), ellipse=False, 
                         pup_cmap=False, lv_axis=None, lv_ax_name='LV axis', ax_length=1, 
-                        ax=None, pup_split=False):
+                        ax=None, pup_split=False, title_string=None):
     """
     Given a site / stimulus pair, load data, run dprime analysis on all data for the pair
      (no test / train), plot results
@@ -1949,10 +1949,12 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     ax.set_xlabel(axlabs[0])
     ax.set_ylabel(axlabs[1])
     ax.legend(frameon=False)
-    ax.set_title(r"$d'^{2} = %s$" 
-                    "\n"
-                    r"$|cos(\theta_{\Delta \mathbf{\mu}, \mathbf{e}_{1}})| = %s$" % (round(dprime, 2), round(cos_du, 2)))   
-
+    if title_string is not None:
+        ax.set_title(f"{title_string}")   
+    else:
+        ax.set_title(r"$d'^{2} = %s$" 
+                        "\n"
+                        r"$|cos(\theta_{\Delta \mathbf{\mu}, \mathbf{e}_{1}})| = %s$" % (round(dprime, 2), round(cos_du, 2)))   
 
     return ax
 
