@@ -15,6 +15,7 @@ jsonpickle_pd.register_handlers()
 import os
 
 import nems_lbhb.baphy as nb
+from nems.xform_helper import load_model_xform
 
 import charlieTools.nat_sounds_ms.preprocessing as nat_preproc
 import charlieTools.nat_sounds_ms.dim_reduction as dr
@@ -480,7 +481,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             tdr.fit(xtrain.T, Y.T)
         else:
             Y = dr.get_one_hot_matrix(ncategories=2, nreps=tdr_data[1])
-            tdr.fit(tdr_data.T, Y.T)
+            tdr.fit(tdr_data[0].T, Y.T)
         tdr_weights = tdr.weights
 
         xtrain_tdr = (xtrain.T @ tdr_weights.T).T
@@ -1807,6 +1808,52 @@ def simulate_response(X, pup_mask, sim_first_order=False,
     return X, pup_mask       
 
 
+def load_xformsModel(site, batch, modelstring=None):
+    """
+    Load xforms model prediction. Note, some of these predictions (e.g. normative LV Models)
+    tile the response across time, so the size is bigger. In these cases, we need to create a 
+    new pupil mask for this "new" data.
+    """
+    if batch==289:
+        batch=322
+    
+    xf, ctx = load_model_xform(site, batch, modelname=modelstring)
+
+    # TODO - do we always want the "pred" signal?
+    rec = ctx['rec'].copy()
+
+    # remove post stim silence (keep prestim so that can get a baseline dprime on each sound)
+    rec = rec.and_mask(['PostStimSilence'], invert=True)
+    if batch == 294:
+        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_' in epoch]
+    else:
+        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
+    rec = rec.and_mask(epochs)
+
+    resp_dict = rec['pred'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
+    spont_signal = rec['pred'].epoch_to_signal('PreStimSilence')
+    sp_dict = spont_signal.extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
+    pup_dict = rec['pupil'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
+
+    # create response matrix, X
+    X = nat_preproc.dict_to_X(resp_dict)
+    X_sp = nat_preproc.dict_to_X(sp_dict)
+    X_pup = nat_preproc.dict_to_X(pup_dict)
+
+    # save epoch names
+    epoch_names = epochs
+
+    # make pupil mask
+    reps = X_pup.shape[1]
+    epochs = X_pup.shape[2]
+    bins = X_pup.shape[3]
+    X_pup = X_pup.reshape(1, reps, epochs * bins)
+    pup_mask = X_pup >= np.tile(np.median(X_pup, axis=1), [1, X_pup.shape[1], 1])
+    X_pup = X_pup.reshape(1, reps, epochs, bins)
+    pup_mask = pup_mask.reshape(1, reps, epochs, bins)
+
+    return X, pup_mask
+
 
 # ================================= Plotting Utilities =========================================
 
@@ -1831,6 +1878,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     nbins = X.shape[3]
     X = X.reshape(ncells, nreps, nstim * nbins)
     X_pup = X_pup.reshape(1, nreps, nstim * nbins)
+    pup_mask = pup_mask.reshape(1, nreps, nstim * nbins)
     sp_bins = sp_bins.reshape(1, sp_bins.shape[1], nstim * nbins)
     nstim = nstim * nbins
 
@@ -1844,6 +1892,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
 
     X = X[:, :, [pair[0], pair[1]]]
     X_pup = X_pup[:, :, [pair[0], pair[1]]]
+    pup_mask = pup_mask[:, :, [pair[0], pair[1]]]
 
     Xflat = nat_preproc.flatten_X(X[:, :, :, np.newaxis])
 
@@ -1892,9 +1941,8 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
         f, ax = plt.subplots(1, 1, figsize=(4, 4))
 
     if pup_split:
-        pupmed=np.median(X_pup)
-        puplg=X_pup>=pupmed
-        pupsm=X_pup<pupmed
+        puplg=pup_mask
+        pupsm=~pup_mask
         ax.scatter(X[0, puplg[0,:,0], 0], X[1, puplg[0,:,0], 0], s=25, color=colors[0], edgecolor='white')
         ax.scatter(X[0, puplg[0,:,1], 1], X[1, puplg[0,:,1], 1], s=25, color=colors[1], edgecolor='white')
         ax.scatter(X[0, pupsm[0,:,0], 0], X[1, pupsm[0,:,0], 0], s=25, color='lightgray', edgecolor='white')
