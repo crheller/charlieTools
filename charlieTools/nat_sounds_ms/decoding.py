@@ -1480,6 +1480,8 @@ def cast_dtypes(df):
               'jack_idx': 'category',
               'n_components': 'category',
               'combo': 'category',
+              'e1': 'category',
+              'e2': 'category',
               'site': 'category'}
     dtypes_new = {k: v for k, v in dtypes.items() if k in df.columns}
     df = df.astype(dtypes_new)
@@ -1808,7 +1810,7 @@ def simulate_response(X, pup_mask, sim_first_order=False,
     return X, pup_mask       
 
 
-def load_xformsModel(site, batch, modelstring=None):
+def load_xformsModel(site, batch, signal='pred', modelstring=None):
     """
     Load xforms model prediction. Note, some of these predictions (e.g. normative LV Models)
     tile the response across time, so the size is bigger. In these cases, we need to create a 
@@ -1820,7 +1822,7 @@ def load_xformsModel(site, batch, modelstring=None):
     xf, ctx = load_model_xform(site, batch, modelname=modelstring)
 
     # TODO - do we always want the "pred" signal?
-    rec = ctx['rec'].copy()
+    rec = ctx['val'].copy()
 
     # remove post stim silence (keep prestim so that can get a baseline dprime on each sound)
     rec = rec.and_mask(['PostStimSilence'], invert=True)
@@ -1830,8 +1832,8 @@ def load_xformsModel(site, batch, modelstring=None):
         epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
     rec = rec.and_mask(epochs)
 
-    resp_dict = rec['pred'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
-    spont_signal = rec['pred'].epoch_to_signal('PreStimSilence')
+    resp_dict = rec[signal].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
+    spont_signal = rec[signal].epoch_to_signal('PreStimSilence')
     sp_dict = spont_signal.extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
     pup_dict = rec['pupil'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
 
