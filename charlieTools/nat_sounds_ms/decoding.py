@@ -48,6 +48,8 @@ class DecodingResults():
             self.spont_stimulus_pairs = df[df['category']=='spont_spont'].combo.unique().tolist()
             self.spont_evoked_stimulus_pairs = df[df['category']=='spont_evoked'].combo.unique().tolist()
             self.evoked_stimulus_pairs = df[df['category']=='evoked_evoked'].combo.unique().tolist()
+            mapping = {a: (b, c) for a, b ,c in zip(df.combo, df.e1, df.e2)}
+            self.mapping = mapping  # used to get true epoch names
 
             # set attribute for number of unique dimensionality reductions
             self.unique_subspace_dims = df.n_components.unique().tolist()
@@ -68,6 +70,8 @@ class DecodingResults():
             # objects = arrays (e.g. arrays of eigenvectors, evals, decoding vectors).
             # returns a dictionary of data frames
             self.array_results = self._collapse_objects(df)
+
+            # map evoked_stimulus_pairs to index
 
             # modify the above results by removing collapsing across spont repeats
             log.info("Consolidating results by combining all spont bins")
@@ -231,6 +235,17 @@ class DecodingResults():
         self.spont_evoked_stimulus_pairs = new_sp_ev_pairs       
 
         # no need to return anything... just update object attributes
+
+    def get_epochbins(self, epochbins):
+        '''
+        Get all stimulus pairs possible built from epochbins.
+        Epochbins is a list of tuples of form (STIM_00xx, bin)
+
+        return the df index using self.mapping
+        '''
+        # use mapping to figure out the "self.combos" that correspond to
+        # each of the epochbins
+        return idx
 
 
     def get_result(self, name, stim_pair=None, n_components=None):
