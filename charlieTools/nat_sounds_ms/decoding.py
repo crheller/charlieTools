@@ -41,7 +41,7 @@ class DecodingResults():
         stimuli and for many jackknifes and for many different dimensionalities (e.g. if
         doing PLS dim reduction, might have results in 2D space, 3D space etc.)
         """
-
+        self.meta = {} # instantiate empty dictionary for miscellaneuos meta data to get stashed
         if df is not None:
             # set attributes with list of unique stimulus combinations / categories
             self.all_stimulus_pairs = df.combo.unique().tolist()
@@ -1825,7 +1825,7 @@ def simulate_response(X, pup_mask, sim_first_order=False,
     return X, pup_mask       
 
 
-def load_xformsModel(site, batch, signal='pred', modelstring=None):
+def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=False):
     """
     Load xforms model prediction. Note, some of these predictions (e.g. normative LV Models)
     tile the response across time, so the size is bigger. In these cases, we need to create a 
@@ -1854,11 +1854,7 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None):
 
     # create response matrix, X
     X = nat_preproc.dict_to_X(resp_dict)
-    X_sp = nat_preproc.dict_to_X(sp_dict)
     X_pup = nat_preproc.dict_to_X(pup_dict)
-
-    # save epoch names
-    epoch_names = epochs
 
     # make pupil mask
     reps = X_pup.shape[1]
@@ -1868,8 +1864,11 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None):
     pup_mask = X_pup >= np.tile(np.median(X_pup, axis=1), [1, X_pup.shape[1], 1])
     X_pup = X_pup.reshape(1, reps, epochs, bins)
     pup_mask = pup_mask.reshape(1, reps, epochs, bins)
-
-    return X, pup_mask
+    
+    if return_meta:
+        return X, pup_mask, ctx['rec'].meta
+    else:
+        return X, pup_mask
 
 
 # ================================= Plotting Utilities =========================================
