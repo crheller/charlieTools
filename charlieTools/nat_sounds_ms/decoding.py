@@ -1677,6 +1677,18 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
             log.info("Extracting cellids: {0}".format(rec.meta['cells_to_extract']))
             rec['resp'] = rec['resp'].extract_channels(rec.meta['cells_to_extract'])
 
+    # make sure mask is a bool
+    if 'mask' in rec.signals.keys():
+        rec['mask'] = rec['mask']._modified_copy(rec['mask']._data.astype(bool))
+
+    # remove post stim silence (keep prestim so that can get a baseline dprime on each sound)
+    rec = rec.and_mask(['PostStimSilence'], invert=True)
+    if batch == 294:
+        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_' in epoch]
+    else:
+        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
+    rec = rec.and_mask(epochs)
+
     if pca_ops is not None:
         ctx = resp_to_pc(rec, pc_idx=None, pc_count=pca_ops['pc_count'], pc_source=pca_ops['pc_source'],
                               overwrite_resp=True, compute_power='no', whiten=False)
@@ -1715,18 +1727,6 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
             residual = residual - reduced_rank.T
             mod_data = rec['psth_sp']._data + residual
             rec['resp'] = rec['resp']._modified_copy(mod_data)
-
-    # make sure mask is a bool
-    if 'mask' in rec.signals.keys():
-        rec['mask'] = rec['mask']._modified_copy(rec['mask']._data.astype(bool))
-
-    # remove post stim silence (keep prestim so that can get a baseline dprime on each sound)
-    rec = rec.and_mask(['PostStimSilence'], invert=True)
-    if batch == 294:
-        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_' in epoch]
-    else:
-        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
-    rec = rec.and_mask(epochs)
 
     resp_dict = rec['resp'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
     spont_signal = rec['resp'].epoch_to_signal('PreStimSilence')
