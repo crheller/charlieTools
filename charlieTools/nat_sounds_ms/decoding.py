@@ -16,6 +16,7 @@ import os
 
 import nems_lbhb.baphy as nb
 from nems.xform_helper import load_model_xform
+from nems.preprocessing import resp_to_pc
 
 import charlieTools.nat_sounds_ms.preprocessing as nat_preproc
 import charlieTools.nat_sounds_ms.dim_reduction as dr
@@ -1653,7 +1654,7 @@ def _dprime_diag(A, B):
 
 
 # ================================= Data Loading Utils ========================================
-def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_all=False,
+def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order=False, sim_all=False,
                                  regress_pupil=False, gain_only=False, dc_only=False, deflate_residual_dim=None, 
                                  var_first_order=True, use_xforms=False, return_epoch_list=False, verbose=False):
     """
@@ -1675,6 +1676,11 @@ def load_site(site, batch, sim_first_order=False, sim_second_order=False, sim_al
         if rec.meta['cells_to_extract'] is not None:
             log.info("Extracting cellids: {0}".format(rec.meta['cells_to_extract']))
             rec['resp'] = rec['resp'].extract_channels(rec.meta['cells_to_extract'])
+
+    if pca_ops is not None:
+        ctx = resp_to_pc(rec, pc_idx=None, pc_count=pca_ops['pc_count'], pc_source=pca_ops['pc_source'],
+                              overwrite_resp=True, compute_power='no', whiten=False)
+        rec = ctx['rec']
 
     # regress out pupil, if specified
     if regress_pupil:
