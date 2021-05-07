@@ -12,6 +12,10 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 
+import logging
+
+log = logging.getLogger()
+
 def dict_to_X(d):
     """
     Transform dictionary of spike counts (returned by nems.recording.extract_epochs)
@@ -19,13 +23,27 @@ def dict_to_X(d):
     """
     
     epochs = d.keys()
-    for i, epoch in enumerate(epochs):
-        r_epoch = d[epoch].transpose(1, 0, -1)[:, :, np.newaxis, :]
-        if i == 0:
-            X = r_epoch
-        else:
-            # stack on stimuli (epochs)
-            X = np.append(X, r_epoch, axis=2)
+
+    # figure out min reps (if they're not the same for each stimulus)
+    reps = [d[e].shape[1] for e in d.keys()]
+    if max(np.diff(reps))>0:
+        log.info("WARNING: Need to choose random subset of reps for certain stim, since reps aren't even")
+        for i, epoch in enumerate(epochs):
+            choose = np.random.choice(range(d[epoch].shape[1]), np.min(reps), replace=False)
+            r_epoch = d[epoch].transpose(1, 0, -1)[:, choose, np.newaxis, :]
+            if i == 0:
+                X = r_epoch
+            else:
+                # stack on stimuli (epochs)
+                X = np.append(X, r_epoch, axis=2)
+    else:
+        for i, epoch in enumerate(epochs):
+            r_epoch = d[epoch].transpose(1, 0, -1)[:, :, np.newaxis, :]
+            if i == 0:
+                X = r_epoch
+            else:
+                # stack on stimuli (epochs)
+                X = np.append(X, r_epoch, axis=2)
     return X
 
 

@@ -13,8 +13,10 @@ import jsonpickle
 import jsonpickle.ext.pandas as jsonpickle_pd
 jsonpickle_pd.register_handlers()
 import os
+import copy
 
 import nems_lbhb.baphy as nb
+from nems_lbhb.baphy_experiment import BAPHYExperiment
 from nems.xform_helper import load_model_xform
 from nems.preprocessing import resp_to_pc
 
@@ -1660,6 +1662,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
+        (does some more weird stuff for CPN (Mateo Data))
     
     Returns full spike count matrix, X, and a spike count matrix with just spont data
 
@@ -1667,11 +1670,23 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     thie set of dimenions to make a reduced rank matrix. Subtract this off 
     from residuals.
     """
-    options = {'cellid': site, 'rasterfs': 4, 'batch': batch, 'pupil': True, 'stim': False}
-    if batch == 294:
-        options['runclass'] = 'VOC'
-    rec = nb.baphy_load_recording_file(**options)
-    rec['resp'] = rec['resp'].rasterize()
+    if batch in [289, 294]:
+        options = {'cellid': site, 'rasterfs': 4, 'batch': batch, 'pupil': True, 'stim': False}
+        if batch == 294:
+            options['runclass'] = 'VOC'
+        rec = nb.baphy_load_recording_file(**options)
+        rec['resp'] = rec['resp'].rasterize()
+
+    elif batch in [316]:
+        # CPN data from Mateo. Need to do some kludging with epochs
+        manager = BAPHYExperiment(cellid=site, batch=batch)
+        options = {'rasterfs': 4, 'resp': True, 'stim': False, 'pupil': True}
+        rec = manager.get_recording(**options)
+        rec = fix_cpn_epochs(rec, manager)
+    
+    else:
+        raise ValueError(f"Unknown batch: {batch}")
+    
     if 'cells_to_extract' in rec.meta.keys():
         if rec.meta['cells_to_extract'] is not None:
             log.info("Extracting cellids: {0}".format(rec.meta['cells_to_extract']))
@@ -1681,7 +1696,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     if 'mask' in rec.signals.keys():
         rec['mask'] = rec['mask']._modified_copy(rec['mask']._data.astype(bool))
 
-    if batch == 294:
+    if batch in [294, 316]:
         epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_' in epoch]
     else:
         epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
@@ -1758,6 +1773,50 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
         return X, X_sp, X_pup, pup_mask, epoch_names
     else:
         return X, X_sp, X_pup, pup_mask
+
+
+def fix_cpn_epochs(rec, manager):
+    newrec = copy.deepcopy(rec)
+    # figure out which file has AllPermutations
+    parms = manager.get_baphy_exptparams()
+    seqStruct = [p['TrialObject'][1]['ReferenceHandle'][1]['SequenceStructure'] for p in parms]
+    try:
+        goodfiles = np.argwhere(np.array(seqStruct)=='AllPermutations').squeeze()
+        files = [e for e in rec.epochs.name if e.startswith('FILE')]
+        gfiles = files[goodfiles]
+        newrec = newrec.and_mask(gfiles)
+        newrec = newrec.apply_mask(reset_epochs=True)
+
+        # now that it's masked, fixed the epochs
+        new_epochs = copy.deepcopy(newrec.epochs)
+
+        # strip the seq. epochs and sub pre/post stim
+        new_epochs = new_epochs[~new_epochs.name.str.contains('_sequence')]
+        new_epochs = new_epochs[new_epochs.name != 'SubPreStimSilence']
+        new_epochs = new_epochs[new_epochs.name != 'SubPostStimSilence']
+
+        # remove "sub" labels
+        sub = new_epochs.name.str.startswith('Sub')
+        new_epochs.at[sub, 'name'] = [s.strip('Sub') for s in new_epochs[sub].name]
+
+        # Clean up the actual sound epochs 
+        stim_mask = new_epochs.name.str.startswith('STIM_')
+        new_epochs.at[stim_mask, 'name'] = [s.split('-context:')[0] for s in new_epochs[stim_mask].name]
+
+        # Chop out first bin of each (to remove weird context effects)
+        one_bin = np.float(1 / rec['resp'].fs)
+        new_epochs.at[stim_mask, 'start'] = new_epochs.loc[stim_mask, 'start'].values + one_bin
+        
+        # clean up index
+        new_epochs = new_epochs.reindex()
+
+        # assign to new recording
+        newrec['resp'].epochs = new_epochs
+
+        return newrec
+
+    except:
+        raise ValueError(f"Couldn't find file with AllPermuations for the CPN recording: {newrec.name}")
 
 
 def simulate_response(X, pup_mask, sim_first_order=False,
