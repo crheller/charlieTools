@@ -1705,7 +1705,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
 
     if pca_ops is not None:
         ctx = resp_to_pc(rec, pc_idx=None, pc_count=pca_ops['pc_count'], pc_source=pca_ops['pc_source'],
-                              overwrite_resp=True, compute_power='no', whiten=False)
+                              overwrite_resp=True, compute_power='no', whiten=pca_ops['whiten'])
         rec = ctx['rec']
 
     # regress out pupil, if specified
