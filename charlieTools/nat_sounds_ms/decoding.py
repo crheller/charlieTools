@@ -1697,9 +1697,9 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
         rec['mask'] = rec['mask']._modified_copy(rec['mask']._data.astype(bool))
 
     if batch in [294, 316]:
-        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_' in epoch]
+        epochs = [epoch for epoch in rec['resp'].epochs.name.unique() if 'STIM_' in epoch]
     else:
-        epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
+        epochs = [epoch for epoch in rec['resp'].epochs.name.unique() if 'STIM_00' in epoch]
     rec = rec.and_mask(epochs)
 
 
@@ -1741,7 +1741,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
             residual = residual - reduced_rank.T
             mod_data = rec['psth_sp']._data + residual
             rec['resp'] = rec['resp']._modified_copy(mod_data)
-
+    
     # remove post stim silence (keep prestim so that can get a baseline dprime on each sound)
     rec = rec.and_mask(['PostStimSilence'], invert=True)
 
@@ -1811,7 +1811,8 @@ def fix_cpn_epochs(rec, manager):
         new_epochs = new_epochs.reindex()
 
         # assign to new recording
-        newrec['resp'].epochs = new_epochs
+        for signal in newrec.signals.keys():
+            newrec[signal].epochs = new_epochs
 
         return newrec
 
