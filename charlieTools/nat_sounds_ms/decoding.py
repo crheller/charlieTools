@@ -19,6 +19,7 @@ import nems_lbhb.baphy as nb
 from nems_lbhb.baphy_experiment import BAPHYExperiment
 from nems.xform_helper import load_model_xform
 from nems.preprocessing import resp_to_pc
+import nems_lbhb.preprocessing as nems_preproc
 
 import charlieTools.nat_sounds_ms.preprocessing as nat_preproc
 import charlieTools.nat_sounds_ms.dim_reduction as dr
@@ -1683,7 +1684,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
         options = {'rasterfs': 4, 'resp': True, 'stim': False, 'pupil': True}
         rec = manager.get_recording(**options)
         rec['resp'] = rec['resp'].rasterize()
-        rec = fix_cpn_epochs(rec, manager)
+        rec = nems_preproc.fix_cpn_epochs(rec, manager)
     
     else:
         raise ValueError(f"Unknown batch: {batch}")
@@ -1777,6 +1778,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
 
 
 def fix_cpn_epochs(rec, manager):
+    raise DeprecationWarning("Use the copy of this function in nems_lbhb.preprocessing!!")
     newrec = copy.deepcopy(rec)
     # figure out which file has AllPermutations
     parms = manager.get_baphy_exptparams()
@@ -1791,10 +1793,12 @@ def fix_cpn_epochs(rec, manager):
         # now that it's masked, fixed the epochs
         new_epochs = copy.deepcopy(newrec.epochs)
 
+        # Name the "trial" pre/post differently to distinguish from each STIM
+        prepost = new_epochs.name.str.startswith('PreStimSilence') | new_epochs.name.str.startswith('PostStimSilence')
+        new_epochs.at[prepost, 'name'] = ['TRIAL'+s for s in new_epochs[prepost].name]
+
         # strip the seq. epochs and sub pre/post stim
         new_epochs = new_epochs[~new_epochs.name.str.contains('_sequence')]
-        new_epochs = new_epochs[new_epochs.name != 'SubPreStimSilence']
-        new_epochs = new_epochs[new_epochs.name != 'SubPostStimSilence']
 
         # remove "sub" labels
         sub = new_epochs.name.str.startswith('Sub')
@@ -1802,11 +1806,12 @@ def fix_cpn_epochs(rec, manager):
 
         # Clean up the actual sound epochs 
         stim_mask = new_epochs.name.str.startswith('STIM_')
-        new_epochs.at[stim_mask, 'name'] = [s.split('-context:')[0] for s in new_epochs[stim_mask].name]
+        new_epochs.at[stim_mask, 'name'] = [s.split('context:')[0][:-1] for s in new_epochs[stim_mask].name]
 
-        # Chop out first bin of each (to remove weird context effects)
+        # Chop out first bin of each (to remove weird context effects) -- (and for the "dummy" prestim silence) 
         one_bin = np.float(1 / rec['resp'].fs)
         new_epochs.at[stim_mask, 'start'] = new_epochs.loc[stim_mask, 'start'].values + one_bin
+        new_epochs.at[sub, 'start'] = new_epochs.loc[sub, 'start'].values + one_bin
         
         # clean up index
         new_epochs = new_epochs.reindex()
