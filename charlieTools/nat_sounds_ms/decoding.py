@@ -1677,11 +1677,12 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
         rec = nb.baphy_load_recording_file(**options)
         rec['resp'] = rec['resp'].rasterize()
 
-    elif batch in [316]:
+    elif batch in [331]:
         # CPN data from Mateo. Need to do some kludging with epochs
         manager = BAPHYExperiment(cellid=site, batch=batch)
         options = {'rasterfs': 4, 'resp': True, 'stim': False, 'pupil': True}
         rec = manager.get_recording(**options)
+        rec['resp'] = rec['resp'].rasterize()
         rec = fix_cpn_epochs(rec, manager)
     
     else:
@@ -1696,7 +1697,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     if 'mask' in rec.signals.keys():
         rec['mask'] = rec['mask']._modified_copy(rec['mask']._data.astype(bool))
 
-    if batch in [294, 316]:
+    if batch in [294, 331]:
         epochs = [epoch for epoch in rec['resp'].epochs.name.unique() if 'STIM_' in epoch]
     else:
         epochs = [epoch for epoch in rec['resp'].epochs.name.unique() if 'STIM_00' in epoch]
