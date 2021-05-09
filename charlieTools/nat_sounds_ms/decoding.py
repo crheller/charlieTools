@@ -1684,7 +1684,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
         options = {'rasterfs': 4, 'resp': True, 'stim': False, 'pupil': True}
         rec = manager.get_recording(**options)
         rec['resp'] = rec['resp'].rasterize()
-        rec = nems_preproc.fix_cpn_epochs(rec, manager)
+        rec = nems_preproc.fix_cpn_epochs(rec)
     
     else:
         raise ValueError(f"Unknown batch: {batch}")
