@@ -1721,7 +1721,9 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
             xforms_modelname = 'ns.fs4.pup-ld-st.pup-hrc-psthfr_sdexp.SxR.bound_jk.nf10-basic'
             if batch == 294:
                 xforms_modelname = xforms_modelname.replace('pup-ld', 'pup.voc-ld')
-            rec_path = '/auto/users/hellerc/results/nat_pupil_ms/pr_recordings/'
+            if batch == 331:
+                xforms_modelname = xforms_modelname.replace('-hrc', '-epcpn-hrc')
+            rec_path = f'/auto/users/hellerc/results/nat_pupil_ms/pr_recordings/{batch}/'
             rec = preproc.generate_state_corrected_psth(batch=batch, modelname=xforms_modelname, cellids=cellid, 
                                         siteid=site, gain_only=gain_only, dc_only=dc_only,
                                         cache_path=rec_path, recache=False)
@@ -1734,7 +1736,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
             xforms_modelname = 'ns.fs4.pup-ld-st.pup-hrc-psthfr_sdexp.SxR.bound_jk.nf10-basic'
             if batch == 294:
                 xforms_modelname = xforms_modelname.replace('pup-ld', 'pup.voc-ld')
-            rec_path = '/auto/users/hellerc/results/nat_pupil_ms/pr_recordings/'
+            rec_path = f'/auto/users/hellerc/results/nat_pupil_ms/pr_recordings/{batch}/'
             rec = preproc.generate_state_corrected_psth(batch=batch, modelname=xforms_modelname, cellids=cellid, 
                                         siteid=site,
                                         cache_path=rec_path, recache=False)
