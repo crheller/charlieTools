@@ -1917,7 +1917,7 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=F
 
     # remove post stim silence (keep prestim so that can get a baseline dprime on each sound)
     rec = rec.and_mask(['PostStimSilence'], invert=True)
-    if batch == 294:
+    if (batch == 294) | (batch==331):
         epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_' in epoch]
     else:
         epochs = [epoch for epoch in rec.epochs.name.unique() if 'STIM_00' in epoch]
