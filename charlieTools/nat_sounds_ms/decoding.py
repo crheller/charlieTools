@@ -2015,6 +2015,8 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
         removed += (xmask==False).sum()
         X = X[:, xmask, :]
         X_pup = X_pup[:, xmask, :]
+        pup_mask = pup_mask[:, xmask, :]
+
     if ylim[1] is not None:
         ymask1 = (X[1, :, :] < ylim[1]).squeeze().sum(axis=-1) == 2
         ymask2 = (X[1, :, :] > ylim[0]).squeeze().sum(axis=-1) == 2
@@ -2022,6 +2024,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
         removed += (ymask==False).sum()
         X = X[:, ymask, :]
         X_pup = X_pup[:, ymask, :]
+        pup_mask = pup_mask[:, ymask, :]
 
     log.info("Removing {0} / {1} reps due to ax limits".format(removed, reps))
 
@@ -2124,9 +2127,9 @@ def plot_pair(est, val, nreps_train, nreps_test, train_pmask=None, test_pmask=No
         Btest_sp = Btest[:, ~test_pmask[0, :, 1]]
 
     # get stats
-    dp_train, wopt_train, evals_train, evecs_train, dU_train = \
+    dp_train, wopt_train, evals_train, evecs_train, dU_train, _ = \
                     compute_dprime(train[:, :, 0], train[:, :, 1])
-    dp_test, wopt_test, evals_test, evecs_test, dU_test = \
+    dp_test, wopt_test, evals_test, evecs_test, dU_test, _ = \
                     compute_dprime(test[:, :, 0], test[:, :, 1], wopt=wopt_train)
 
     wopt_unit = wopt_train / np.linalg.norm(wopt_train) * np.std(train)
