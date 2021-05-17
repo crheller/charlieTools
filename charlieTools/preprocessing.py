@@ -64,7 +64,7 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
     file_epochs = []
 
     for pr in preds:
-        file_epochs += [ep for ep in pr.epochs.name if 'FILE' in ep]
+        file_epochs += [ep for ep in pr.epochs.name if ep.startswith('FILE')]
 
     unique_files = np.unique(file_epochs)
     shared_files = []
@@ -105,9 +105,12 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
             new_resp = p['resp'].rasterize()
 
         else:
-            new_psth_sp = new_psth_sp.concatenate_channels([new_psth_sp, p['psth_sp']])
-            new_psth = new_psth.concatenate_channels([new_psth, pred])
-            new_resp = new_resp.concatenate_channels([new_resp, p['resp'].rasterize()])
+            try:
+                new_psth_sp = new_psth_sp.concatenate_channels([new_psth_sp, p['psth_sp']])
+                new_psth = new_psth.concatenate_channels([new_psth, pred])
+                new_resp = new_resp.concatenate_channels([new_resp, p['resp'].rasterize()])
+            except ValueError:
+                import pdb; pdb.set_trace()
 
     new_pup = preds[0]['pupil']
     sigs['pupil'] = new_pup

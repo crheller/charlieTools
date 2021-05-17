@@ -1729,6 +1729,9 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
                                         cache_path=rec_path, recache=False)
             mod_data = rec['resp']._data - rec['psth']._data + rec['psth_sp']._data
             rec['resp'] = rec['resp']._modified_copy(mod_data)
+        
+        if batch in [331]:
+            rec = nems_preproc.fix_cpn_epochs(rec)
     
     if deflate_residual_dim is not None:
             log.info('Reducing rank of residuals by deflating out given dimenions')
@@ -1748,7 +1751,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     
     # remove post stim silence (keep prestim so that can get a baseline dprime on each sound)
     rec = rec.and_mask(['PostStimSilence'], invert=True)
-
+    
     resp_dict = rec['resp'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
     spont_signal = rec['resp'].epoch_to_signal('PreStimSilence')
     sp_dict = spont_signal.extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
