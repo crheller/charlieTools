@@ -1730,8 +1730,9 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
             mod_data = rec['resp']._data - rec['psth']._data + rec['psth_sp']._data
             rec['resp'] = rec['resp']._modified_copy(mod_data)
         
-        if batch in [331]:
-            rec = nems_preproc.fix_cpn_epochs(rec)
+        #if batch in [331]:
+        #    rec = nems_preproc.fix_cpn_epochs(rec)
+        # this happens in the xforms model
     
     if deflate_residual_dim is not None:
             log.info('Reducing rank of residuals by deflating out given dimenions')

@@ -360,6 +360,7 @@ def compute_rsc(d, chans=None):
     chans is list of unit names. If none, will just label the index with neuron indices
     """
     resp_dict = d.copy()
+    raw_resp_dict = resp_dict.copy()
     log.info("Compute z-scores of responses for noise correlation calculation")
     resp_dict = preproc.zscore_per_stim(resp_dict, d2=resp_dict)
 
@@ -369,8 +370,10 @@ def compute_rsc(d, chans=None):
     for i, k in enumerate(resp_dict.keys()):
         if i == 0:
             resp_matrix = np.transpose(resp_dict[k], [1, 0, -1]).reshape(nCells, -1)
+            raw_resp_matrix = np.transpose(raw_resp_dict[k], [1, 0, -1]).reshape(nCells, -1)
         else:
             resp_matrix = np.concatenate((resp_matrix, np.transpose(resp_dict[k], [1, 0, -1]).reshape(nCells, -1)), axis=-1)
+            raw_resp_matrix = np.concatenate((raw_resp_matrix, np.transpose(raw_resp_dict[k], [1, 0, -1]).reshape(nCells, -1)), axis=-1)
     # Note, there will be Nan bins for some neurons
     # (where there were no spikes, std is zero so zscore is nan)
     # these will be excluded in the noise corr. calculation
@@ -381,7 +384,7 @@ def compute_rsc(d, chans=None):
         df_idx = ["{0}_{1}".format(i, j) for (i, j) in combos]
     else:
         df_idx = ["{0}_{1}".format(chans[i], chans[j]) for (i, j) in combos]
-    cols = ['rsc', 'pval']
+    cols = ['rsc', 'pval', 'gmean']
     df = pd.DataFrame(columns=cols, index=df_idx)
     for i, pair in enumerate(combos):
         n1 = pair[0]
@@ -391,8 +394,9 @@ def compute_rsc(d, chans=None):
         rr = np.isfinite(resp_matrix[n1, :] + resp_matrix[n2, :])
         if rr.sum() >= 2:
             cc, pval = ss.pearsonr(resp_matrix[n1, rr], resp_matrix[n2, rr])
-            df.loc[idx, cols] = [cc, pval]
+            gmean = np.sqrt(raw_resp_matrix[n1, rr].mean() * raw_resp_matrix[n2, rr].mean())
+            df.loc[idx, cols] = [cc, pval, gmean]
         else:
-            df.loc[idx, cols] = [np.nan, np.nan]
+            df.loc[idx, cols] = [np.nan, np.nan, np.nan]
 
     return df
