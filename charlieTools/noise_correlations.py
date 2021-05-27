@@ -395,6 +395,8 @@ def compute_rsc(d, chans=None):
         if rr.sum() >= 2:
             cc, pval = ss.pearsonr(resp_matrix[n1, rr], resp_matrix[n2, rr])
             gmean = np.sqrt(raw_resp_matrix[n1, rr].mean() * raw_resp_matrix[n2, rr].mean())
+            if np.isnan(gmean):
+                gmean = 0
             df.loc[idx, cols] = [cc, pval, gmean]
         else:
             df.loc[idx, cols] = [np.nan, np.nan, np.nan]
