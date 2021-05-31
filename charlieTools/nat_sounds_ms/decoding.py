@@ -1659,7 +1659,8 @@ def _dprime_diag(A, B):
 # ================================= Data Loading Utils ========================================
 def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order=False, sim_all=False,
                                  regress_pupil=False, gain_only=False, dc_only=False, deflate_residual_dim=None, 
-                                 var_first_order=True, use_xforms=False, return_epoch_list=False, verbose=False):
+                                 var_first_order=True, use_xforms=False, return_epoch_list=False, exclude_low_fr=False,
+                                 threshold=None, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
@@ -1752,6 +1753,21 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     
     # remove post stim silence (keep prestim so that can get a baseline dprime on each sound)
     rec = rec.and_mask(['PostStimSilence'], invert=True)
+
+    # remove low firing rate cells
+    if exclude_low_fr:
+        if threshold is not None:
+            thresh = threshold
+        else:
+            thresh = 1
+        data = rec.apply_mask()['resp']._data
+        m = data.mean(axis=-1) * rec['resp'].fs
+        keep = np.argwhere(m > thresh)
+        cids = np.array(rec['resp'].chans)[keep]
+        log.info(f"Removing {len(rec['resp'].chans)-len(cids)} low FR units under threshold of {thresh}Hz")
+        for s in ['resp', 'pred', 'psth', 'psth_sp']:
+            if s in rec.signals.keys():
+                rec[s] = rec[s].extract_channels(list(cids))
     
     resp_dict = rec['resp'].extract_epochs(epochs, mask=rec['mask'], allow_incomplete=True)
     spont_signal = rec['resp'].epoch_to_signal('PreStimSilence')
