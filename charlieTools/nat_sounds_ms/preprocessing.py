@@ -10,7 +10,7 @@ CRH 04/10/2020
 from itertools import combinations
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, FactorAnalysis
 
 import logging
 
@@ -151,20 +151,30 @@ def scale_est_val(est, val, mean=True, sd=True):
     return est_new, val_new
 
 
-def get_first_pc_per_est(est):
+def get_first_pc_per_est(est, method='pca'):
     """
     est is a list of validation response matrices. For each matrix, 
     calculate the first PC of the noise (stimulus subtracted).
     Return a list with the PC weights for each val set.
     """
     # each el in val is shape (neuron x reps x stim)
-    pcs = []
-    for e in est:
-        residual = e - e.mean(axis=1, keepdims=True)
-        pca = PCA(n_components=1)
-        pca.fit(residual.reshape(residual.shape[0], -1).T)
-        pcs.append(pca.components_)
-    return pcs
+    if method=='pca':
+        pcs = []
+        for e in est:
+            residual = e - e.mean(axis=1, keepdims=True)
+            pca = PCA(n_components=1)
+            pca.fit(residual.reshape(residual.shape[0], -1).T)
+            pcs.append(pca.components_)
+        return pcs
+
+    elif method=='fa':
+        factors = []
+        for e in est:
+            residual = e - e.mean(axis=1, keepdims=True)
+            fa = FactorAnalysis(n_components=1, random_state=0)
+            fa.fit(residual.reshape(residual.shape[0], -1).T)
+            factors.append(fa.components_)
+        return factors
 
 
 def get_pupil_range(X_pup, pmask):
