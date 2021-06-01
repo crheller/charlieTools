@@ -173,7 +173,7 @@ def get_first_pc_per_est(est, method='pca'):
             residual = e - e.mean(axis=1, keepdims=True)
             fa = FactorAnalysis(n_components=1, random_state=0)
             fa.fit(residual.reshape(residual.shape[0], -1).T)
-            factors.append(fa.components_)
+            factors.append(fa.components_ / np.linalg.norm(fa.components_))
         return factors
 
 
