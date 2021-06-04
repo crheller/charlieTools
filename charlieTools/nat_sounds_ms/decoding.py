@@ -79,7 +79,10 @@ class DecodingResults():
 
             # modify the above results by removing collapsing across spont repeats
             log.info("Consolidating results by combining all spont bins")
-            self._consolidate_spont_results()
+            try:
+                self._consolidate_spont_results()
+            except:
+                log.info("Couldn't consolidate spont")
 
             # add dataframe detailing pupil results for each stim at this site
             self.pupil_range = pupil_range
@@ -122,7 +125,7 @@ class DecodingResults():
                     sem = np.nanstd(x, axis=0) / np.sqrt(np.isfinite(x[nanslice].squeeze()).sum())
                     results[obj].loc[idx]['mean'] = mean
                     results[obj].loc[idx]['sem'] = sem
-                except ValueError:
+                except:
                     log.info("Failed trying to concatenate object: {}".format(obj))
 
         return results
@@ -494,20 +497,28 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             else:
                 raise NotImplementedError("Can't do simulations without specifying a pupil mask. TODO: update decoding.simulate_response to handle this")
         
-        tdr = dr.TDR(tdr2_init=tdr2_axis, n_additional_axes=n_additional_axes)
+        if n_additional_axes==-1:
+            naa = 0
+        else:
+            naa = n_additional_axes
+        tdr = dr.TDR(tdr2_init=tdr2_axis, n_additional_axes=naa)
         if tdr_data is None:
             Y = dr.get_one_hot_matrix(ncategories=2, nreps=nreps_train)
             tdr.fit(xtrain.T, Y.T)
         else:
             Y = dr.get_one_hot_matrix(ncategories=2, nreps=tdr_data[1])
             tdr.fit(tdr_data[0].T, Y.T)
+
+        if n_additional_axes==-1:
+            tdr.weights = tdr.weights[[0], :]
+
         tdr_weights = tdr.weights
 
         xtrain_tdr = (xtrain.T @ tdr_weights.T).T
         xtest_tdr = (xtest.T @ tdr_weights.T).T
 
-        xtrain_tdr = nat_preproc.fold_X(xtrain_tdr, nreps=nreps_train, nstim=2, nbins=1).squeeze()
-        xtest_tdr = nat_preproc.fold_X(xtest_tdr, nreps=nreps_test, nstim=2, nbins=1).squeeze()
+        xtrain_tdr = nat_preproc.fold_X(xtrain_tdr, nreps=nreps_train, nstim=2, nbins=1).squeeze(3)
+        xtest_tdr = nat_preproc.fold_X(xtest_tdr, nreps=nreps_test, nstim=2, nbins=1).squeeze(3)
 
         # perform training set decoding analysis (this is so that decoding axis is always defined 
         # using the raw data, not simulated data)
@@ -517,8 +528,11 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
                                 compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1])
 
         # compute dprime metrics diag decoder
-        tdr_dp_train_diag, tdr_wopt_train_diag, _, _, _, x = \
-                                compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1], diag=True)
+        if n_additional_axes >= 0:
+            tdr_dp_train_diag, tdr_wopt_train_diag, _, _, _, x = \
+                                    compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1], diag=True)
+        else:
+            tdr_dp_train_diag = np.nan; tdr_wopt_train_diag = np.nan
 
         # now, compute dprime on the test set
         tdr_test_var = np.var(xtest_tdr.T @ tdr_weights)  / np.var(xtest)
@@ -531,134 +545,150 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
         tdr_wopt_test = tdr_wopt_train
 
         # compute dprime diag on test set
-        tdr_dp_test_diag, tdr_wopt_test_diag, _, _, _, _ = \
-                                compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], diag=True)
+        if n_additional_axes >= 0:
+            tdr_dp_test_diag, tdr_wopt_test_diag, _, _, _, _ = \
+                                    compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], diag=True)
+        else:
+            tdr_dp_test_diag = np.nan; tdr_wopt_test_diag = np.nan
 
-        # caculate additional metrics
-        dU_mag_train         = np.linalg.norm(tdr_dU_train)
-        dU_dot_evec_train    = tdr_dU_train.dot(tdr_evecs_train)
-        cos_dU_wopt_train    = abs(unit_vectors(tdr_dU_train.T).T.dot(unit_vectors(tdr_wopt_train)))
-        dU_dot_evec_sq_train = tdr_dU_train.dot(tdr_evecs_train) ** 2
-        evec_snr_train       = dU_dot_evec_sq_train / tdr_evals_train
-        cos_dU_evec_train    = abs(unit_vectors(tdr_dU_train.T).T.dot(tdr_evecs_train))
+        # caculate additional metrics (as long as we decoded in a space > 1D)
+        if n_additional_axes >= 0:
+            dU_mag_train         = np.linalg.norm(tdr_dU_train)
+            dU_dot_evec_train    = tdr_dU_train.dot(tdr_evecs_train)
+            cos_dU_wopt_train    = abs(unit_vectors(tdr_dU_train.T).T.dot(unit_vectors(tdr_wopt_train)))
+            dU_dot_evec_sq_train = tdr_dU_train.dot(tdr_evecs_train) ** 2
+            evec_snr_train       = dU_dot_evec_sq_train / tdr_evals_train
+            cos_dU_evec_train    = abs(unit_vectors(tdr_dU_train.T).T.dot(tdr_evecs_train))
 
-        dU_mag_test         = np.linalg.norm(tdr_dU_test)
-        dU_dot_evec_test    = tdr_dU_test.dot(tdr_evecs_test)
-        cos_dU_wopt_test    = abs(unit_vectors(tdr_dU_test.T).T.dot(unit_vectors(tdr_wopt_test)))
-        dU_dot_evec_sq_test = tdr_dU_test.dot(tdr_evecs_test) ** 2
-        evec_snr_test       = dU_dot_evec_sq_test / tdr_evals_test
-        cos_dU_evec_test    = abs(unit_vectors(tdr_dU_test.T).T.dot(tdr_evecs_test))
+            dU_mag_test         = np.linalg.norm(tdr_dU_test)
+            dU_dot_evec_test    = tdr_dU_test.dot(tdr_evecs_test)
+            cos_dU_wopt_test    = abs(unit_vectors(tdr_dU_test.T).T.dot(unit_vectors(tdr_wopt_test)))
+            dU_dot_evec_sq_test = tdr_dU_test.dot(tdr_evecs_test) ** 2
+            evec_snr_test       = dU_dot_evec_sq_test / tdr_evals_test
+            cos_dU_evec_test    = abs(unit_vectors(tdr_dU_test.T).T.dot(tdr_evecs_test))
 
-        # project eigenvectors, dU, and wopt back into N-dimensional space
-        # in order to investigate which neurons contribute to signal vs. noise
-        # (think this just needs to be done for train set)
-        dU_all = tdr_dU_train.dot(tdr.weights)
-        wopt_all = tdr_wopt_train.T.dot(tdr.weights).T
-        evecs_all = tdr_evecs_train.dot(tdr.weights).T
+            # project eigenvectors, dU, and wopt back into N-dimensional space
+            # in order to investigate which neurons contribute to signal vs. noise
+            # (think this just needs to be done for train set)
+            dU_all = tdr_dU_train.dot(tdr.weights)
+            wopt_all = tdr_wopt_train.T.dot(tdr.weights).T
+            evecs_all = tdr_evecs_train.dot(tdr.weights).T
 
-        # also do for test (except for wopt which is defined on train)
-        dU_all_test = tdr_dU_test.dot(tdr.weights)
-        evecs_all_test = tdr_evecs_test.dot(tdr.weights).T
+            # also do for test (except for wopt which is defined on train)
+            dU_all_test = tdr_dU_test.dot(tdr.weights)
+            evecs_all_test = tdr_evecs_test.dot(tdr.weights).T
 
-        # pack results into dictionary to return
-        results = {
-            'dp_opt_test': tdr_dp_test, 
-            'dp_diag_test': tdr_dp_test_diag,
-            'wopt_test': tdr_wopt_test,
-            'wdiag_test': tdr_wopt_test_diag,
-            'var_explained_test': tdr_test_var,
-            'evals_test': tdr_evals_test, 
-            'evecs_test': tdr_evecs_test, 
-            'evec_sim_test': evec_sim_test,
-            'dU_test': tdr_dU_test,
-            'dp_opt_train': tdr_dp_train, 
-            'dp_diag_train': tdr_dp_train_diag, 
-            'wopt_train': tdr_wopt_train, 
-            'wdiag_train': tdr_wopt_train_diag, 
-            'var_explained_train': tdr_train_var,
-            'evals_train': tdr_evals_train, 
-            'evecs_train': tdr_evecs_train, 
-            'evec_sim_train': evec_sim_train,
-            'dU_train': tdr_dU_train, 
-            'dU_mag_test': dU_mag_test, 
-            'dU_dot_evec_test': dU_dot_evec_test, 
-            'cos_dU_wopt_test': cos_dU_wopt_test, 
-            'dU_dot_evec_sq_test': dU_dot_evec_sq_test, 
-            'evec_snr_test': evec_snr_test, 
-            'cos_dU_evec_test': cos_dU_evec_test,
-            'dU_mag_train': dU_mag_train, 
-            'dU_dot_evec_train': dU_dot_evec_train, 
-            'cos_dU_wopt_train': cos_dU_wopt_train, 
-            'dU_dot_evec_sq_train': dU_dot_evec_sq_train, 
-            'evec_snr_train': evec_snr_train, 
-            'cos_dU_evec_train': cos_dU_evec_train,
-            'dU_all': dU_all,
-            'wopt_all': wopt_all,
-            'evecs_all': evecs_all,
-            'dU_all_test': dU_all_test,
-            'evecs_all_test': evecs_all_test
-        }
+            # pack results into dictionary to return
+            results = {
+                'dp_opt_test': tdr_dp_test, 
+                'dp_diag_test': tdr_dp_test_diag,
+                'wopt_test': tdr_wopt_test,
+                'wdiag_test': tdr_wopt_test_diag,
+                'var_explained_test': tdr_test_var,
+                'evals_test': tdr_evals_test, 
+                'evecs_test': tdr_evecs_test, 
+                'evec_sim_test': evec_sim_test,
+                'dU_test': tdr_dU_test,
+                'dp_opt_train': tdr_dp_train, 
+                'dp_diag_train': tdr_dp_train_diag, 
+                'wopt_train': tdr_wopt_train, 
+                'wdiag_train': tdr_wopt_train_diag, 
+                'var_explained_train': tdr_train_var,
+                'evals_train': tdr_evals_train, 
+                'evecs_train': tdr_evecs_train, 
+                'evec_sim_train': evec_sim_train,
+                'dU_train': tdr_dU_train, 
+                'dU_mag_test': dU_mag_test, 
+                'dU_dot_evec_test': dU_dot_evec_test, 
+                'cos_dU_wopt_test': cos_dU_wopt_test, 
+                'dU_dot_evec_sq_test': dU_dot_evec_sq_test, 
+                'evec_snr_test': evec_snr_test, 
+                'cos_dU_evec_test': cos_dU_evec_test,
+                'dU_mag_train': dU_mag_train, 
+                'dU_dot_evec_train': dU_dot_evec_train, 
+                'cos_dU_wopt_train': cos_dU_wopt_train, 
+                'dU_dot_evec_sq_train': dU_dot_evec_sq_train, 
+                'evec_snr_train': evec_snr_train, 
+                'cos_dU_evec_train': cos_dU_evec_train,
+                'dU_all': dU_all,
+                'wopt_all': wopt_all,
+                'evecs_all': evecs_all,
+                'dU_all_test': dU_all_test,
+                'evecs_all_test': evecs_all_test
+            }
 
-        if beta1 is not None:
-            wopt_norm = wopt_all / np.linalg.norm(wopt_all)
-            beta1_dU = abs(beta1.T.dot(tdr_weights[0, :])[0])
-            beta1_tdr2 = abs(beta1.T.dot(tdr_weights[1, :])[0])
-            beta1_wopt = abs(beta1.T.dot(wopt_norm)[0][0])
-            beta1_tdr = beta1.T.dot(tdr_weights.T)   
-            beta1_mag = np.linalg.norm(beta1_tdr) 
-            beta1_tdr = beta1_tdr / beta1_mag
+            if beta1 is not None:
+                wopt_norm = wopt_all / np.linalg.norm(wopt_all)
+                beta1_dU = abs(beta1.T.dot(tdr_weights[0, :])[0])
+                try:
+                    beta1_tdr2 = abs(beta1.T.dot(tdr_weights[1, :])[0])
+                except:
+                    beta1_tdr2 = np.nan
+                beta1_wopt = abs(beta1.T.dot(wopt_norm)[0][0])
+                beta1_tdr = beta1.T.dot(tdr_weights.T)   
+                beta1_mag = np.linalg.norm(beta1_tdr) 
+                beta1_tdr = beta1_tdr / beta1_mag
 
-            # center xtest for each stim
-            xcenter = xtest_tdr - xtest_tdr.mean(axis=1, keepdims=True)
-            xcenter = xcenter.reshape(2+n_additional_axes, -1)    
+                # center xtest for each stim
+                xcenter = xtest_tdr - xtest_tdr.mean(axis=1, keepdims=True)
+                xcenter = xcenter.reshape(2+n_additional_axes, -1)    
 
-            beta1_lambda = np.var(xcenter.T.dot(beta1_tdr.T)) # @ beta1_tdr)
-            dU_dot_beta1_sq = tdr_dU_test.dot(beta1_tdr.T)[0][0]**2
-            beta1_snr = dU_dot_beta1_sq / beta1_lambda
+                beta1_lambda = np.var(xcenter.T.dot(beta1_tdr.T)) # @ beta1_tdr)
+                dU_dot_beta1_sq = tdr_dU_test.dot(beta1_tdr.T)[0][0]**2
+                beta1_snr = dU_dot_beta1_sq / beta1_lambda
 
-            dU_dot_beta1 = abs((tdr_dU_test / np.linalg.norm(tdr_dU_test)).dot(beta1_tdr.T))[0][0]
+                dU_dot_beta1 = abs((tdr_dU_test / np.linalg.norm(tdr_dU_test)).dot(beta1_tdr.T))[0][0]
 
-            results.update({
-                'beta1_dot_dU': beta1_dU,
-                'beta1_dot_tdr2': beta1_tdr2,
-                'beta1_dot_wopt': beta1_wopt,
-                'beta1_lambda': beta1_lambda,
-                'beta1_mag': beta1_mag,
-                'dU_dot_beta1_sq': dU_dot_beta1_sq,
-                'beta1_snr':  beta1_snr,
-                'cos_dU_beta1': dU_dot_beta1
-            })  
+                results.update({
+                    'beta1_dot_dU': beta1_dU,
+                    'beta1_dot_tdr2': beta1_tdr2,
+                    'beta1_dot_wopt': beta1_wopt,
+                    'beta1_lambda': beta1_lambda,
+                    'beta1_mag': beta1_mag,
+                    'dU_dot_beta1_sq': dU_dot_beta1_sq,
+                    'beta1_snr':  beta1_snr,
+                    'cos_dU_beta1': dU_dot_beta1
+                })  
 
-        if beta2 is not None:
-            wopt_norm = wopt_all / np.linalg.norm(wopt_all)
-            beta2_dU = abs(beta2.T.dot(tdr_weights[0, :])[0])
-            beta2_tdr2 = abs(beta2.T.dot(tdr_weights[1, :])[0])
-            beta2_wopt = abs(beta2.T.dot(wopt_norm)[0][0])
-            beta2_tdr = beta2.T.dot(tdr_weights.T)   
-            beta2_mag = np.linalg.norm(beta2_tdr) 
-            beta2_tdr = beta2_tdr / beta2_mag
-               
-            # center xtest for each stim
-            xcenter = xtest_tdr - xtest_tdr.mean(axis=1, keepdims=True)
-            xcenter = xcenter.reshape(2+n_additional_axes, -1)    
+            if beta2 is not None:
+                wopt_norm = wopt_all / np.linalg.norm(wopt_all)
+                beta2_dU = abs(beta2.T.dot(tdr_weights[0, :])[0])
+                try:
+                    beta2_tdr2 = abs(beta2.T.dot(tdr_weights[1, :])[0])
+                except:
+                    beta2_tdr2 = np.nan
+                beta2_wopt = abs(beta2.T.dot(wopt_norm)[0][0])
+                beta2_tdr = beta2.T.dot(tdr_weights.T)   
+                beta2_mag = np.linalg.norm(beta2_tdr) 
+                beta2_tdr = beta2_tdr / beta2_mag
+                
+                # center xtest for each stim
+                xcenter = xtest_tdr - xtest_tdr.mean(axis=1, keepdims=True)
+                xcenter = xcenter.reshape(2+n_additional_axes, -1)    
 
-            beta2_lambda = np.var(xcenter.T.dot(beta2_tdr.T)) # @ beta2_tdr)
-            dU_dot_beta2_sq = tdr_dU_test.dot(beta2_tdr.T)[0][0]**2
-            beta2_snr = dU_dot_beta2_sq / beta2_lambda
+                beta2_lambda = np.var(xcenter.T.dot(beta2_tdr.T)) # @ beta2_tdr)
+                dU_dot_beta2_sq = tdr_dU_test.dot(beta2_tdr.T)[0][0]**2
+                beta2_snr = dU_dot_beta2_sq / beta2_lambda
 
-            dU_dot_beta2 = abs((tdr_dU_test / np.linalg.norm(tdr_dU_test)).dot(beta2_tdr.T))[0][0]
+                dU_dot_beta2 = abs((tdr_dU_test / np.linalg.norm(tdr_dU_test)).dot(beta2_tdr.T))[0][0]
 
-            results.update({
-                'beta2_dot_dU': beta2_dU,
-                'beta2_dot_tdr2': beta2_tdr2,
-                'beta2_dot_wopt': beta2_wopt,
-                'beta2_lambda': beta2_lambda,
-                'beta2_mag': beta2_mag,
-                'dU_dot_beta2_sq': dU_dot_beta2_sq,
-                'beta2_snr':  beta2_snr,
-                'cos_dU_beta2': dU_dot_beta2
-            })  
-
+                results.update({
+                    'beta2_dot_dU': beta2_dU,
+                    'beta2_dot_tdr2': beta2_tdr2,
+                    'beta2_dot_wopt': beta2_wopt,
+                    'beta2_lambda': beta2_lambda,
+                    'beta2_mag': beta2_mag,
+                    'dU_dot_beta2_sq': dU_dot_beta2_sq,
+                    'beta2_snr':  beta2_snr,
+                    'cos_dU_beta2': dU_dot_beta2
+                })  
+        else:
+            # just doing dU decoding, so all the axes / alignement is meaningless.
+            # just save dprime
+            results = {
+                'dp_opt_train': tdr_dp_train,
+                'dp_opt_test': tdr_dp_test
+            }
 
         # deal with large / small pupil data
         if ptrain_mask is not None:
@@ -672,47 +702,54 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             bp_dprime, _, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=tdr_wopt_train)
             sp_dprime, _, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=tdr_wopt_train)
 
-            # get pupil-dependent variance along the prinicple noise axes (analogous to lambda)
-            # point is to compare the variance along these PCs between large / small pupil
-            # NEED TO CENTER THE DATA FOR THIS!!! UPDATE 10-03-2020, CRH
-            big = np.concatenate([A_bp - A_bp.mean(axis=1, keepdims=True), B_bp - B_bp.mean(axis=1, keepdims=True)], axis=-1)
-            small = np.concatenate([A_sp - A_sp.mean(axis=1, keepdims=True), B_sp - B_sp.mean(axis=1, keepdims=True)], axis=-1)
-            bp_lambda = np.var(big.T.dot(tdr_evecs_test), axis=0)
-            sp_lambda = np.var(small.T.dot(tdr_evecs_test), axis=0)
+            if n_additional_axes > 0:
+                # get pupil-dependent variance along the prinicple noise axes (analogous to lambda)
+                # point is to compare the variance along these PCs between large / small pupil
+                # NEED TO CENTER THE DATA FOR THIS!!! UPDATE 10-03-2020, CRH
+                big = np.concatenate([A_bp - A_bp.mean(axis=1, keepdims=True), B_bp - B_bp.mean(axis=1, keepdims=True)], axis=-1)
+                small = np.concatenate([A_sp - A_sp.mean(axis=1, keepdims=True), B_sp - B_sp.mean(axis=1, keepdims=True)], axis=-1)
+                bp_lambda = np.var(big.T.dot(tdr_evecs_test), axis=0)
+                sp_lambda = np.var(small.T.dot(tdr_evecs_test), axis=0)
 
-            # compute additional metrics
-            bp_dU_mag         = np.linalg.norm(bp_dU)
-            bp_dU_dot_evec    = bp_dU.dot(tdr_evecs_test)
-            bp_cos_dU_wopt    = abs(unit_vectors(bp_dU.T).T.dot(unit_vectors(tdr_wopt_train)))
-            bp_dU_dot_evec_sq = bp_dU.dot(tdr_evecs_test) ** 2
-            bp_evec_snr       = bp_dU_dot_evec_sq / bp_lambda
-            bp_cos_dU_evec    = abs(unit_vectors(bp_dU.T).T.dot(tdr_evecs_test))
+                # compute additional metrics
+                bp_dU_mag         = np.linalg.norm(bp_dU)
+                bp_dU_dot_evec    = bp_dU.dot(tdr_evecs_test)
+                bp_cos_dU_wopt    = abs(unit_vectors(bp_dU.T).T.dot(unit_vectors(tdr_wopt_train)))
+                bp_dU_dot_evec_sq = bp_dU.dot(tdr_evecs_test) ** 2
+                bp_evec_snr       = bp_dU_dot_evec_sq / bp_lambda
+                bp_cos_dU_evec    = abs(unit_vectors(bp_dU.T).T.dot(tdr_evecs_test))
 
-            sp_dU_mag         = np.linalg.norm(sp_dU)
-            sp_dU_dot_evec    = sp_dU.dot(tdr_evecs_test)
-            sp_cos_dU_wopt    = abs(unit_vectors(sp_dU.T).T.dot(unit_vectors(tdr_wopt_train)))
-            sp_dU_dot_evec_sq = sp_dU.dot(tdr_evecs_test) ** 2
-            sp_evec_snr       = sp_dU_dot_evec_sq / sp_lambda
-            sp_cos_dU_evec    = abs(unit_vectors(sp_dU.T).T.dot(tdr_evecs_test))
+                sp_dU_mag         = np.linalg.norm(sp_dU)
+                sp_dU_dot_evec    = sp_dU.dot(tdr_evecs_test)
+                sp_cos_dU_wopt    = abs(unit_vectors(sp_dU.T).T.dot(unit_vectors(tdr_wopt_train)))
+                sp_dU_dot_evec_sq = sp_dU.dot(tdr_evecs_test) ** 2
+                sp_evec_snr       = sp_dU_dot_evec_sq / sp_lambda
+                sp_cos_dU_evec    = abs(unit_vectors(sp_dU.T).T.dot(tdr_evecs_test))
 
-            results.update({
-                'bp_dp': bp_dprime,
-                'bp_evals': bp_lambda,
-                'bp_dU_mag': bp_dU_mag,
-                'bp_dU_dot_evec': bp_dU_dot_evec,
-                'bp_cos_dU_wopt': bp_cos_dU_wopt,
-                'bp_dU_dot_evec_sq': bp_dU_dot_evec_sq,
-                'bp_evec_snr': bp_evec_snr,
-                'bp_cos_dU_evec': bp_cos_dU_evec,
-                'sp_dp': sp_dprime,
-                'sp_evals': sp_lambda,
-                'sp_dU_mag': sp_dU_mag,
-                'sp_dU_dot_evec': sp_dU_dot_evec,
-                'sp_cos_dU_wopt': sp_cos_dU_wopt,
-                'sp_dU_dot_evec_sq': sp_dU_dot_evec_sq,
-                'sp_evec_snr': sp_evec_snr,
-                'sp_cos_dU_evec': sp_cos_dU_evec
-            })
+                results.update({
+                    'bp_dp': bp_dprime,
+                    'bp_evals': bp_lambda,
+                    'bp_dU_mag': bp_dU_mag,
+                    'bp_dU_dot_evec': bp_dU_dot_evec,
+                    'bp_cos_dU_wopt': bp_cos_dU_wopt,
+                    'bp_dU_dot_evec_sq': bp_dU_dot_evec_sq,
+                    'bp_evec_snr': bp_evec_snr,
+                    'bp_cos_dU_evec': bp_cos_dU_evec,
+                    'sp_dp': sp_dprime,
+                    'sp_evals': sp_lambda,
+                    'sp_dU_mag': sp_dU_mag,
+                    'sp_dU_dot_evec': sp_dU_dot_evec,
+                    'sp_cos_dU_wopt': sp_cos_dU_wopt,
+                    'sp_dU_dot_evec_sq': sp_dU_dot_evec_sq,
+                    'sp_evec_snr': sp_evec_snr,
+                    'sp_cos_dU_evec': sp_cos_dU_evec
+                })
+            else:
+                results.update({
+                    'bp_dp': bp_dprime,
+                    'sp_dp': sp_dprime
+                })
+
 
         if not verbose:
             return results
@@ -1531,11 +1568,30 @@ def compute_dprime(A, B, diag=False, wopt=None):
     if diag:
         dprime, wopt, evals, evecs, evec_sim, dU = _dprime_diag(A, B)
 
+    elif A.shape[0]==1:
+        # single dimension
+        dprime = _dprime_single_dim(A, B)
+        wopt = np.nan; evals = np.nan; evecs = np.nan; evec_sim = np.nan; dU = np.nan
+        return dprime, wopt, evals, evecs, evec_sim, dU
+
     else:
         dprime, wopt, evals, evecs, evec_sim, dU = _dprime(A, B, wopt=wopt)
 
     return dprime, wopt, evals, evecs, evec_sim, dU 
 
+def _dprime_single_dim(A, B):
+    """
+    Simplest case of single neuron (dimension) dprime -- classic signal detection theory
+    u1 - u2 / sqrt(0.5 * (sig1 + sig2))
+    """
+    num = A.mean() - B.mean()
+    den = np.sqrt(0.5 * (A.var() + B.var()))
+    if num == 0:
+        return 0
+    elif den == 0:
+        return np.inf
+    else:
+        return num / den
 
 def _dprime(A, B, wopt=None):
     """
