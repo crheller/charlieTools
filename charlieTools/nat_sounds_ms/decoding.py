@@ -1591,7 +1591,7 @@ def _dprime_single_dim(A, B):
     elif den == 0:
         return np.inf
     else:
-        return num / den
+        return (num / den) ** 2
 
 def _dprime(A, B, wopt=None):
     """
