@@ -1715,8 +1715,8 @@ def _dprime_diag(A, B):
 # ================================= Data Loading Utils ========================================
 def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order=False, sim_all=False,
                                  regress_pupil=False, gain_only=False, dc_only=False, deflate_residual_dim=None, 
-                                 var_first_order=True, use_xforms=False, return_epoch_list=False, exclude_low_fr=False,
-                                 threshold=None, verbose=False):
+                                 var_first_order=True, use_xforms=False, xforms_modelname=None, return_epoch_list=False, exclude_low_fr=False,
+                                 threshold=None, special=False, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
@@ -1727,6 +1727,10 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     If deflate_residual is not None (is a vector/matrix), the project residuals onto 
     thie set of dimenions to make a reduced rank matrix. Subtract this off 
     from residuals.
+
+    crh - 6.9.2021
+    Note that xforms_modelname is not related to use_xforms. use_xforms is just for regressing out first order pupil,
+    while if xforms_modelname is not None, this will load the pred for that modelstring
     """
     if batch in [289, 294]:
         options = {'cellid': site, 'rasterfs': 4, 'batch': batch, 'pupil': True, 'stim': False}
@@ -1750,6 +1754,10 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
         if rec.meta['cells_to_extract'] is not None:
             log.info("Extracting cellids: {0}".format(rec.meta['cells_to_extract']))
             rec['resp'] = rec['resp'].extract_channels(rec.meta['cells_to_extract'])
+
+    if xforms_modelname is not None:
+        xf, ctx = load_model_xform(cellid=site, batch=batch, modelname=xforms_modelname)
+        rec['resp'] = rec['resp']._modified_copy(ctx['val']['pred']._data[:, :rec['resp']._data.shape[-1]])
 
     # make sure mask is a bool
     if 'mask' in rec.signals.keys():
@@ -1838,6 +1846,13 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     # save epoch names
     epoch_names = epochs
 
+    # if batch is 331, we don't have traditional PreStimSilence
+    # instead, extract mean spont rate per neuron for special plotting
+    # stuff
+    if batch == 331:
+        tstimsilence = rec['resp'].extract_epoch('TRIALPreStimSilence')
+        spont_per_neuron = np.mean(tstimsilence, axis=(0, 2))
+
     # make pupil mask
     reps = X_pup.shape[1]
     epochs = X_pup.shape[2]
@@ -1851,6 +1866,8 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
         return X, X_sp, X_pup, pup_mask, X_raw, pup_mask_raw
     if return_epoch_list:
         return X, X_sp, X_pup, pup_mask, epoch_names
+    if special:
+        return X, X_sp, X_pup, pup_mask, epoch_names, spont_per_neuron
     else:
         return X, X_sp, X_pup, pup_mask
 
@@ -2029,42 +2046,58 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=F
 def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1', 'dim2'], 
                         ylim=(None, None), xlim=(None, None), ellipse=False, 
                         pup_cmap=False, lv_axis=None, lv_ax_name='LV axis', ax_length=1, 
+                        xforms_modelname=None,
                         ax=None, pup_split=False, title_string=None):
     """
     Given a site / stimulus pair, load data, run dprime analysis on all data for the pair
      (no test / train), plot results
     """
-    X, sp_bins, X_pup, pup_mask = load_site(site=site, batch=batch, 
-                                       sim_first_order=False, 
-                                       sim_second_order=False,
-                                       sim_all=False,
-                                       regress_pupil=False)
+
+    # load raw data no matter what
+    X_raw, sp_bins, X_pup, pup_mask = load_site(site=site, batch=batch, 
+                                    sim_first_order=False, 
+                                    sim_second_order=False,
+                                    sim_all=False,
+                                    xforms_modelname=None,
+                                    regress_pupil=False)
+    if xforms_modelname is not None:
+        X, sp_bins, X_pup, pup_mask = load_site(site=site, batch=batch, 
+                                        sim_first_order=False, 
+                                        sim_second_order=False,
+                                        sim_all=False,
+                                        xforms_modelname=xforms_modelname,
+                                        regress_pupil=False)
+    else:
+        X = X_raw.copy()
 
     ncells = X.shape[0]
     nreps = X.shape[1]
     nstim = X.shape[2]
     nbins = X.shape[3]
     X = X.reshape(ncells, nreps, nstim * nbins)
+    X_raw = X_raw.reshape(ncells, nreps, nstim * nbins)
     X_pup = X_pup.reshape(1, nreps, nstim * nbins)
     pup_mask = pup_mask.reshape(1, nreps, nstim * nbins)
     sp_bins = sp_bins.reshape(1, sp_bins.shape[1], nstim * nbins)
     nstim = nstim * nbins
 
-    Xdisplay = X.copy()
-
     reps = X.shape[1]
     X, _ = nat_preproc.scale_est_val([X], [X])
+    X_raw, _ = nat_preproc.scale_est_val([X_raw], [X_raw])
     X = X[0]
+    X_raw = X_raw[0]
 
-    tdr_axis = nat_preproc.get_first_pc_per_est([X])
+    tdr_axis = nat_preproc.get_first_pc_per_est([X_raw], method='fa')
 
     X = X[:, :, [pair[0], pair[1]]]
+    X_raw = X_raw[:, :, [pair[0], pair[1]]]
     X_pup = X_pup[:, :, [pair[0], pair[1]]]
     pup_mask = pup_mask[:, :, [pair[0], pair[1]]]
 
     Xflat = nat_preproc.flatten_X(X[:, :, :, np.newaxis])
+    Xflat_raw = nat_preproc.flatten_X(X_raw[:, :, :, np.newaxis])
 
-    tdr_results, tdr_weights = do_tdr_dprime_analysis(Xflat,
+    tdr_results, tdr_weights = do_tdr_dprime_analysis(Xflat_raw,
                                                       Xflat,
                                                       reps,
                                                       reps,
@@ -2078,6 +2111,10 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     evals = tdr_results['evals_test'][0]  
     wopt = tdr_results['wopt_test']
     cos_du = tdr_results['cos_dU_evec_test'][0, 0]
+
+    print("\n\n\n\n\n\n")
+    print(tdr_weights)
+    print("\n\n\n\n\n\n")
     
     # project all data onto the mean tdr axes
     Xflat = Xflat.T.dot(weights.T).T
