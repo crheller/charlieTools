@@ -1757,7 +1757,9 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
 
     if xforms_modelname is not None:
         xf, ctx = load_model_xform(cellid=site, batch=batch, modelname=xforms_modelname)
-        rec['resp'] = rec['resp']._modified_copy(ctx['val']['pred']._data[:, :rec['resp']._data.shape[-1]])
+        rec = ctx['val'].copy()
+        rec['resp'] = rec['pred'].copy()
+        #rec['resp'] = rec['resp']._modified_copy(ctx['val']['pred']._data[:, :rec['resp']._data.shape[-1]])
 
     # make sure mask is a bool
     if 'mask' in rec.signals.keys():
@@ -2075,13 +2077,16 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     nstim = X.shape[2]
     nbins = X.shape[3]
     X = X.reshape(ncells, nreps, nstim * nbins)
-    X_raw = X_raw.reshape(ncells, nreps, nstim * nbins)
+
+    nreps_raw = X_raw.shape[1]
+    X_raw = X_raw.reshape(ncells, nreps_raw, nstim * nbins)
     X_pup = X_pup.reshape(1, nreps, nstim * nbins)
     pup_mask = pup_mask.reshape(1, nreps, nstim * nbins)
     sp_bins = sp_bins.reshape(1, sp_bins.shape[1], nstim * nbins)
     nstim = nstim * nbins
 
     reps = X.shape[1]
+    reps_raw = X_raw.shape[1]
     X, _ = nat_preproc.scale_est_val([X], [X])
     X_raw, _ = nat_preproc.scale_est_val([X_raw], [X_raw])
     X = X[0]
@@ -2099,7 +2104,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
 
     tdr_results, tdr_weights = do_tdr_dprime_analysis(Xflat_raw,
                                                       Xflat,
-                                                      reps,
+                                                      reps_raw,
                                                       reps,
                                                       tdr2_axis=tdr_axis[0],
                                                       ptrain_mask=None,
