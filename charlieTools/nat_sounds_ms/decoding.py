@@ -2049,7 +2049,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
                         ylim=(None, None), xlim=(None, None), ellipse=False, 
                         pup_cmap=False, lv_axis=None, lv_ax_name='LV axis', ax_length=1, 
                         xforms_modelname=None,
-                        ax=None, pup_split=False, title_string=None):
+                        ax=None, pup_split=False, title_string=None, s=10):
     """
     Given a site / stimulus pair, load data, run dprime analysis on all data for the pair
      (no test / train), plot results
@@ -2156,16 +2156,16 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     if pup_split:
         puplg=pup_mask
         pupsm=~pup_mask
-        ax.scatter(X[0, puplg[0,:,0], 0], X[1, puplg[0,:,0], 0], s=25, color=colors[0], edgecolor='white')
-        ax.scatter(X[0, puplg[0,:,1], 1], X[1, puplg[0,:,1], 1], s=25, color=colors[1], edgecolor='white')
-        ax.scatter(X[0, pupsm[0,:,0], 0], X[1, pupsm[0,:,0], 0], s=25, color='lightgray', edgecolor='white')
-        ax.scatter(X[0, pupsm[0,:,1], 1], X[1, pupsm[0,:,1], 1], s=25, color='lightgray', edgecolor='white')
+        ax.scatter(X[0, puplg[0,:,0], 0], X[1, puplg[0,:,0], 0], s=s, color=colors[0], edgecolor='white')
+        ax.scatter(X[0, puplg[0,:,1], 1], X[1, puplg[0,:,1], 1], s=s, color=colors[1], edgecolor='white')
+        ax.scatter(X[0, pupsm[0,:,0], 0], X[1, pupsm[0,:,0], 0], s=s, color='lightgray', edgecolor='white')
+        ax.scatter(X[0, pupsm[0,:,1], 1], X[1, pupsm[0,:,1], 1], s=s, color='lightgray', edgecolor='white')
     elif pup_cmap:
-        ax.scatter(X[0, :, 0, 0], X[1, :, 0, 0], s=40, c=X_pup[0, :, 0], cmap='Reds', edgecolor='white')
-        ax.scatter(X[0, :, 1, 0], X[1, :, 1, 0], s=40, c=X_pup[0, :, 1], cmap='Blues', edgecolor='white')
+        ax.scatter(X[0, :, 0, 0], X[1, :, 0, 0], s=s, c=X_pup[0, :, 0], cmap='Reds', edgecolor='white')
+        ax.scatter(X[0, :, 1, 0], X[1, :, 1, 0], s=s, c=X_pup[0, :, 1], cmap='Blues', edgecolor='white')
     else:
-        ax.scatter(X[0, :, 0], X[1, :, 0], s=25, color=colors[0], edgecolor='white')
-        ax.scatter(X[0, :, 1], X[1, :, 1], s=25, color=colors[1], edgecolor='white')
+        ax.scatter(X[0, :, 0], X[1, :, 0], s=s, color=colors[0], edgecolor='white')
+        ax.scatter(X[0, :, 1], X[1, :, 1], s=s, color=colors[1], edgecolor='white')
 
     if ellipse:
         if pup_split:
