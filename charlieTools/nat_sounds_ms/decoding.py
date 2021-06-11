@@ -1715,7 +1715,8 @@ def _dprime_diag(A, B):
 # ================================= Data Loading Utils ========================================
 def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order=False, sim_all=False,
                                  regress_pupil=False, gain_only=False, dc_only=False, deflate_residual_dim=None, 
-                                 var_first_order=True, use_xforms=False, xforms_modelname=None, return_epoch_list=False, exclude_low_fr=False,
+                                 var_first_order=True, use_xforms=False, xforms_modelname=None, xforms_signal='pred', reshuf=False, 
+                                 return_epoch_list=False, exclude_low_fr=False,
                                  threshold=None, special=False, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
@@ -1731,6 +1732,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     crh - 6.9.2021
     Note that xforms_modelname is not related to use_xforms. use_xforms is just for regressing out first order pupil,
     while if xforms_modelname is not None, this will load the pred for that modelstring
+    reshuf will reshuffle the signals in val['indep'] and val['lv'] -- these are random noise for LV models.
     """
     if batch in [289, 294]:
         options = {'cellid': site, 'rasterfs': 4, 'batch': batch, 'pupil': True, 'stim': False}
@@ -1758,8 +1760,17 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     if xforms_modelname is not None:
         xf, ctx = load_model_xform(cellid=site, batch=batch, modelname=xforms_modelname)
         rec = ctx['val'].copy()
-        rec['resp'] = rec['pred'].copy()
-        #rec['resp'] = rec['resp']._modified_copy(ctx['val']['pred']._data[:, :rec['resp']._data.shape[-1]])
+        if reshuf:
+            for s in ['indep', 'lv']:
+                try:
+                    n_chans, T = rec[s].shape
+                    rec[s] = rec[s]._modified_copy(np.random.randn(n_chans, T))
+                    rec = ctx['modelspec'].evaluate(rec=rec)
+                except:
+                    log.info(f"Trying to reshuffle {s} but signal doesn't exist in val")
+                    pass
+        rec['resp'] = rec[xforms_signal].copy()
+
 
     # make sure mask is a bool
     if 'mask' in rec.signals.keys():
@@ -2048,11 +2059,14 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=F
 def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1', 'dim2'], 
                         ylim=(None, None), xlim=(None, None), ellipse=False, 
                         pup_cmap=False, lv_axis=None, lv_ax_name='LV axis', ax_length=1, 
-                        xforms_modelname=None,
+                        xforms_modelname=None, xforms_signal='pred', reshuf=False,
                         ax=None, pup_split=False, title_string=None, s=10):
     """
     Given a site / stimulus pair, load data, run dprime analysis on all data for the pair
      (no test / train), plot results
+
+     specialized keys to be passed into load_site for loading xforms models:
+        xforms_modelname=None, xforms_signal='pred', reshuf=False
     """
 
     # load raw data no matter what
@@ -2068,6 +2082,8 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
                                         sim_second_order=False,
                                         sim_all=False,
                                         xforms_modelname=xforms_modelname,
+                                        xforms_signal=xforms_signal,
+                                        reshuf=reshuf,
                                         regress_pupil=False)
     else:
         X = X_raw.copy()
