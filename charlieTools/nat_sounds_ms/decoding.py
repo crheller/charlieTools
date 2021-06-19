@@ -1735,10 +1735,12 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     while if xforms_modelname is not None, this will load the pred for that modelstring
     reshuf will reshuffle the signals in val['indep'] and val['lv'] -- these are random noise for LV models.
     """
-    if batch in [289, 294]:
+    if batch in [289, 294, 322]:
         options = {'cellid': site, 'rasterfs': 4, 'batch': batch, 'pupil': True, 'stim': False}
         if batch == 294:
             options['runclass'] = 'VOC'
+        if batch == 322:
+            options['batch'] = 289
         rec = nb.baphy_load_recording_file(**options)
         rec['resp'] = rec['resp'].rasterize()
 
