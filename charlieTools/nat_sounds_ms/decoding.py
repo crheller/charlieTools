@@ -702,7 +702,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             bp_dprime, _, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=tdr_wopt_train)
             sp_dprime, _, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=tdr_wopt_train)
 
-            if n_additional_axes > 0:
+            if n_additional_axes >= 0:
                 # get pupil-dependent variance along the prinicple noise axes (analogous to lambda)
                 # point is to compare the variance along these PCs between large / small pupil
                 # NEED TO CENTER THE DATA FOR THIS!!! UPDATE 10-03-2020, CRH
