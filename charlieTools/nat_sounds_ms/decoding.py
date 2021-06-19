@@ -1716,8 +1716,9 @@ def _dprime_diag(A, B):
 def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order=False, sim_all=False,
                                  regress_pupil=False, gain_only=False, dc_only=False, deflate_residual_dim=None, 
                                  var_first_order=True, use_xforms=False, xforms_modelname=None, xforms_signal='pred', reshuf=False, 
-                                 return_epoch_list=False, exclude_low_fr=False,
-                                 threshold=None, special=False, verbose=False):
+                                 return_epoch_list=False, mask_movement=False,
+                                 exclude_low_fr=False, threshold=None, 
+                                 special=False, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
@@ -1744,10 +1745,16 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     elif batch in [331]:
         # CPN data from Mateo. Need to do some kludging with epochs
         manager = BAPHYExperiment(cellid=site, batch=batch)
-        options = {'rasterfs': 4, 'resp': True, 'stim': False, 'pupil': True}
+        options = {'rasterfs': 4, 'resp': True, 'stim': False, 'pupil': True, 'pupil_varianble_name': 'area'}
         rec = manager.get_recording(**options)
         rec['resp'] = rec['resp'].rasterize()
         rec = nems_preproc.fix_cpn_epochs(rec)
+
+        if mask_movement != False:
+            if type(mask_movement) is tuple:
+                rec = nems_preproc.movement_mask(rec, threshold=mask_movement[0], binsize=mask_movement[1])['rec']
+            else:
+                rec = nems_preproc.movement_mask(rec)['rec']
     
     else:
         raise ValueError(f"Unknown batch: {batch}")
