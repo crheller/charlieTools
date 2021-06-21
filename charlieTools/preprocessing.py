@@ -16,7 +16,7 @@ from nems_lbhb.preprocessing import create_pupil_mask
 log = logging.getLogger(__name__)
 
 
-def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, siteid=None, 
+def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, siteid=None, movement_mask=False,
                                         gain_only=False, dc_only=False, cache_path=None, recache=False):
     """
     Modifies the exisiting recording so that psth signal is the prediction specified
@@ -33,6 +33,8 @@ def generate_state_corrected_psth(batch=None, modelname=None, cellids=None, site
         fn = cache_path + siteid + '_{}.tgz'.format(modelname.split('.')[1])
         if gain_only:
             fn = fn.replace('.tgz', '_gonly.tgz')
+        if 'mvm' in modelname:
+            fn = fn.replace('.tgz', '_mvm.tgz')
         if (os.path.isfile(fn)) & (recache == False):
             rec = Recording.load(fn)
             return rec

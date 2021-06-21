@@ -16,7 +16,6 @@ import logging
 
 log = logging.getLogger()
 
-np.random.seed(123)
 def dict_to_X(d):
     """
     Transform dictionary of spike counts (returned by nems.recording.extract_epochs)
@@ -26,6 +25,11 @@ def dict_to_X(d):
     epochs = d.keys()
     # figure out min reps (if they're not the same for each stimulus)
     reps = [d[e].shape[0] for e in d.keys()]
+    min_even_reps = np.min(reps)
+    if min_even_reps % 2 == 0:
+        pass
+    else:
+        min_even_reps -= 1
     if np.max(np.diff(reps))==0:
         for i, epoch in enumerate(epochs):
             r_epoch = d[epoch].transpose(1, 0, -1)[:, :, np.newaxis, :]
@@ -35,9 +39,10 @@ def dict_to_X(d):
                 # stack on stimuli (epochs)
                 X = np.append(X, r_epoch, axis=2)
     else:
-        log.info("WARNING: Need to choose random subset of reps for certain stim, since reps aren't even")
+        log.info("WARNING: Need to choose subset of reps for certain stim, since reps aren't even")
         for i, epoch in enumerate(epochs):
-            choose = np.random.choice(range(d[epoch].shape[0]), np.min(reps), replace=False)
+            # don't choose randomly bc then wouldn't line up with other data that gets tranformed
+            choose = np.arange(min_even_reps)
             r_epoch = d[epoch].transpose(1, 0, -1)[:, choose, np.newaxis, :]
             if i == 0:
                 X = r_epoch
