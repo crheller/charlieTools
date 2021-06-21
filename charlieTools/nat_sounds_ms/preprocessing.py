@@ -30,7 +30,8 @@ def dict_to_X(d):
         pass
     else:
         min_even_reps -= 1
-    if np.max(np.diff(reps))==0:
+
+    if np.max(np.abs(np.diff(reps)))==0:
         for i, epoch in enumerate(epochs):
             r_epoch = d[epoch].transpose(1, 0, -1)[:, :, np.newaxis, :]
             if i == 0:
