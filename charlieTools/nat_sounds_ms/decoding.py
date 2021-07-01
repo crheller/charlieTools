@@ -15,6 +15,7 @@ jsonpickle_pd.register_handlers()
 import os
 import copy
 
+import nems.db as nd
 import nems_lbhb.baphy as nb
 from nems_lbhb.baphy_experiment import BAPHYExperiment
 from nems.xform_helper import load_model_xform
@@ -1748,6 +1749,10 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
         options = {'rasterfs': 4, 'resp': True, 'stim': False, 'pupil': True, 'pupil_variable_name': 'area'}
         rec = manager.get_recording(**options)
         rec['resp'] = rec['resp'].rasterize()
+        if batch == 294:
+            stims = [s for s in rec['resp'].epochs.name.unique() if ('STIM_' in s) & ('Pips' not in s)]
+            rec = rec.and_mask(stims)
+            rec = rec.apply_mask(reset_epochs=True)
 
     elif batch in [331]:
         # CPN data from Mateo. Need to do some kludging with epochs
@@ -1772,7 +1777,11 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
             rec['resp'] = rec['resp'].extract_channels(rec.meta['cells_to_extract'])
 
     if xforms_modelname is not None:
-        xf, ctx = load_model_xform(cellid=site, batch=batch, modelname=xforms_modelname)
+        try:
+            xf, ctx = load_model_xform(cellid=site, batch=batch, modelname=xforms_modelname)
+        except:
+            cellid = [c for c in nd.get_batch_cells(batch).cellid if site in c][0]
+            xf, ctx = load_model_xform(cellid=cellid, batch=batch, modelname=xforms_modelname)
         rec = ctx['val'].copy()
         if reshuf:
             for s in ['indep', 'lv']:
@@ -2029,7 +2038,6 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=F
     """
     if batch==289:
         batch=322
-    
     try:
         xf, ctx = load_model_xform(site, batch, modelname=modelstring)
     except:
@@ -2077,7 +2085,7 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=F
 def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1', 'dim2'], 
                         ylim=(None, None), xlim=(None, None), ellipse=False, 
                         pup_cmap=False, lv_axis=None, lv_ax_name='LV axis', ax_length=1, 
-                        xforms_modelname=None, xforms_signal='pred', reshuf=False,
+                        xforms_modelname=None, xforms_signal='pred', reshuf=False, mask_movement=False,
                         ax=None, pup_split=False, title_string=None, s=10):
     """
     Given a site / stimulus pair, load data, run dprime analysis on all data for the pair
@@ -2092,6 +2100,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
                                     sim_first_order=False, 
                                     sim_second_order=False,
                                     sim_all=False,
+                                    mask_movement=mask_movement,
                                     xforms_modelname=None,
                                     regress_pupil=False)
     if xforms_modelname is not None:
