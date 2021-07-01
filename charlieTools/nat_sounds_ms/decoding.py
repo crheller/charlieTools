@@ -2030,7 +2030,11 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=F
     if batch==289:
         batch=322
     
-    xf, ctx = load_model_xform(site, batch, modelname=modelstring)
+    try:
+        xf, ctx = load_model_xform(site, batch, modelname=modelstring)
+    except:
+        log.info("try loading using cellid instead of site")
+        xf, ctx = load_model_xform([c for c in nd.get_batch_cells(batch) if site in c][0], batch, modelname=modelstring)
 
     # TODO - do we always want the "pred" signal?
     rec = ctx['val'].copy()
