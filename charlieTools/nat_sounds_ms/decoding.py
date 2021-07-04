@@ -1784,6 +1784,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
 
         if mask_movement != False:
             if type(mask_movement) is tuple:
+                log.info(f"Masking recording using threshold: {mask_movement[0]} and binsize: {mask_movement[1]}")
                 rec = nems_preproc.movement_mask(rec, threshold=mask_movement[0], binsize=mask_movement[1])['rec']
             else:
                 rec = nems_preproc.movement_mask(rec)['rec']
