@@ -28,6 +28,8 @@ import charlieTools.preprocessing as preproc
 import charlieTools.simulate_data as simulate
 import charlieTools.plotting as cplt
 
+import hashlib
+
 import logging
 
 log = logging.getLogger()
@@ -342,13 +344,24 @@ class DecodingResults():
     
     def save_pickle(self, fn):
         log.info("Saving pickle to {}".format(fn))
-        with open(fn, 'wb') as handle:
-            pickle.dump(self, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        try:
+            with open(fn, 'wb') as handle:
+                pickle.dump(self, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        except OSError:
+            nn = hashlib.md5(os.path.split(fn)[1].strip('.pickle').encode()).hexdigest() + '.pickle'
+            fn = os.path.join(os.path.split(fn)[0], nn)
+            log.info(f"Hashing model name because model name is too long. Saveing to {fn}")
+            with open(fn, 'wb') as handle:
+                pickle.dump(self, handle, protocol=pickle.HIGHEST_PROTOCOL)
         log.info('Success!')
 
     def load_results(self, fn, cache_path=None, recache=False):
         if (not os.path.isfile(fn)) & (cache_path is None):
-            raise FileNotFoundError
+            # try to find a hashed version
+            nn = hashlib.md5(os.path.split(fn)[1].strip('.pickle').encode()).hexdigest() + '.pickle'
+            fn = os.path.join(os.path.split(fn)[0], nn)
+            if (not os.path.isfile(fn)):
+                raise FileNotFoundError
 
         # look for locally cached results
         if cache_path is not None:
@@ -384,8 +397,15 @@ class DecodingResults():
     def save_json(self, fn):
         log.info("json serializing DecodingResults object to {}".format(fn))
         js_string = jsonpickle.encode(self)
-        with open(fn, 'w') as handle:
-            json.dump(js_string, handle)
+        try:
+            with open(fn, 'w') as handle:
+                json.dump(js_string, handle)
+        except OSError:
+            nn = hashlib.md5(os.path.split(fn)[1].strip('.pickle').encode()).hexdigest() + '.pickle'
+            fn = os.path.join(os.path.split(fn)[0], nn)
+            log.info(f"Hashing model name because model name is too long. Saveing to {fn}")
+            with open(fn, 'w') as handle:
+                json.dump(js_string, handle)
     
     def load_json(self, fn):
         if not os.path.isfile(fn):
