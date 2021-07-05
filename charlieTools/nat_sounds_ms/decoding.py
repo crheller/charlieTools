@@ -1739,6 +1739,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
                                  var_first_order=True, use_xforms=False, xforms_modelname=None, xforms_signal='pred', reshuf=False, 
                                  return_epoch_list=False, mask_movement=False,
                                  exclude_low_fr=False, threshold=None, 
+                                 use_old_cpn=False,
                                  special=False, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
@@ -1780,7 +1781,7 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
         options = {'rasterfs': 4, 'resp': True, 'stim': False, 'pupil': True, 'pupil_variable_name': 'area'}
         rec = manager.get_recording(**options)
         rec['resp'] = rec['resp'].rasterize()
-        rec = nems_preproc.fix_cpn_epochs(rec)
+        rec = nems_preproc.fix_cpn_epochs(rec, use_old=use_old_cpn)
 
         if mask_movement != False:
             if type(mask_movement) is tuple:
