@@ -599,6 +599,26 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             dU_all_test = tdr_dU_test.dot(tdr.weights)
             evecs_all_test = tdr_evecs_test.dot(tdr.weights).T
 
+            # calculate angle between responses
+            # in raw response space
+            _r = nat_preproc.fold_X(xtest, nreps=nreps_test, nstim=2, nbins=1).squeeze(3)
+            r1 = _r[:, :, 0].mean(axis=-1) / np.linalg.norm(_r[:, :, 0].mean(axis=-1)) 
+            r2 = _r[:, :, 1].mean(axis=-1) / np.linalg.norm(_r[:, :, 1].mean(axis=-1)) 
+            cos_r1r2_test = np.abs(r1.dot(r2))
+            _r = nat_preproc.fold_X(xtrain, nreps=nreps_train, nstim=2, nbins=1).squeeze(3)
+            r1 = _r[:, :, 0].mean(axis=-1) / np.linalg.norm(_r[:, :, 0].mean(axis=-1)) 
+            r2 = _r[:, :, 1].mean(axis=-1) / np.linalg.norm(_r[:, :, 1].mean(axis=-1))             
+            cos_r1r2_train = np.abs(r1.dot(r2))
+
+            # in dDR space
+            r1 = xtest_tdr[:, :, 0].mean(axis=-1) / np.linalg.norm(xtest_tdr[:, :, 0].mean(axis=-1)) 
+            r2 = xtest_tdr[:, :, 1].mean(axis=-1) / np.linalg.norm(xtest_tdr[:, :, 1].mean(axis=-1)) 
+            cos_ddr_r1r2_test = np.abs(r1.dot(r2))
+            r1 = xtrain_tdr[:, :, 0].mean(axis=-1) / np.linalg.norm(xtrain_tdr[:, :, 0].mean(axis=-1)) 
+            r2 = xtrain_tdr[:, :, 1].mean(axis=-1) / np.linalg.norm(xtrain_tdr[:, :, 1].mean(axis=-1)) 
+            cos_ddr_r1r2_train = np.abs(r1.dot(r2))
+
+
             # pack results into dictionary to return
             results = {
                 'dp_opt_test': tdr_dp_test, 
@@ -635,7 +655,11 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
                 'wopt_all': wopt_all,
                 'evecs_all': evecs_all,
                 'dU_all_test': dU_all_test,
-                'evecs_all_test': evecs_all_test
+                'evecs_all_test': evecs_all_test,
+                'cos_r1r2_test': cos_r1r2_test,
+                'cos_r1r2_train': cos_r1r2_train,
+                'cos_ddr_r1r2_test': cos_ddr_r1r2_test,
+                'cos_ddr_r1r2_train': cos_ddr_r1r2_train
             }
 
             if beta1 is not None:
@@ -1532,6 +1556,10 @@ def cast_dtypes(df):
               'dU_all': 'object',
               'wopt_all': 'object',
               'evecs_all': 'object',
+              'cos_r1r2_test': 'float32',
+              'cos_r1r2_train': 'float32',
+              'cos_ddr_r1r2_test': 'float32',
+              'cos_ddr_r1r2_train': 'float32',
               'dU_all_test': 'object',
               'evecs_all_test': 'object',
               'bp_dp': 'float32',
