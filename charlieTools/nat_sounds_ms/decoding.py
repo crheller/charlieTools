@@ -618,6 +618,13 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             r2 = xtrain_tdr[:, :, 1].mean(axis=-1) / np.linalg.norm(xtrain_tdr[:, :, 1].mean(axis=-1)) 
             cos_ddr_r1r2_train = np.abs(r1.dot(r2))
 
+            # calculate the response magnitude for each stimulus
+            _r = nat_preproc.fold_X(xtest, nreps=nreps_test, nstim=2, nbins=1).squeeze(3)
+            r1mag_test = np.linalg.norm(_r[:, :, 0].mean(axis=-1)) 
+            r2mag_test = np.linalg.norm(_r[:, :, 1].mean(axis=-1))
+            _r = nat_preproc.fold_X(xtrain, nreps=nreps_test, nstim=2, nbins=1).squeeze(3)
+            r1mag_train = np.linalg.norm(_r[:, :, 0].mean(axis=-1)) 
+            r2mag_train = np.linalg.norm(_r[:, :, 1].mean(axis=-1))
 
             # pack results into dictionary to return
             results = {
@@ -659,7 +666,11 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
                 'cos_r1r2_test': cos_r1r2_test,
                 'cos_r1r2_train': cos_r1r2_train,
                 'cos_ddr_r1r2_test': cos_ddr_r1r2_test,
-                'cos_ddr_r1r2_train': cos_ddr_r1r2_train
+                'cos_ddr_r1r2_train': cos_ddr_r1r2_train,
+                'r1mag_train': r1mag_train,
+                'r2mag_train': r2mag_train,
+                'r1mag_test': r1mag_test,
+                'r2mag_test': r2mag_test
             }
 
             if beta1 is not None:
@@ -1560,6 +1571,10 @@ def cast_dtypes(df):
               'cos_r1r2_train': 'float32',
               'cos_ddr_r1r2_test': 'float32',
               'cos_ddr_r1r2_train': 'float32',
+              'r1mag_train': 'float32',
+              'r2mag_train': 'float32',
+              'r1mag_test': 'float32',
+              'r2mag_test': 'float32',
               'dU_all_test': 'object',
               'evecs_all_test': 'object',
               'bp_dp': 'float32',
