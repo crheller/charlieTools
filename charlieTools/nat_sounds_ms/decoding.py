@@ -622,7 +622,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             _r = nat_preproc.fold_X(xtest, nreps=nreps_test, nstim=2, nbins=1).squeeze(3)
             r1mag_test = np.linalg.norm(_r[:, :, 0].mean(axis=-1)) 
             r2mag_test = np.linalg.norm(_r[:, :, 1].mean(axis=-1))
-            _r = nat_preproc.fold_X(xtrain, nreps=nreps_test, nstim=2, nbins=1).squeeze(3)
+            _r = nat_preproc.fold_X(xtrain, nreps=nreps_train, nstim=2, nbins=1).squeeze(3)
             r1mag_train = np.linalg.norm(_r[:, :, 0].mean(axis=-1)) 
             r2mag_train = np.linalg.norm(_r[:, :, 1].mean(axis=-1))
 
