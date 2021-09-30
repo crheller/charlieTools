@@ -2213,7 +2213,7 @@ def plot_stimulus_pair(site='SITE', batch=0, pair=(0,1),
 
     Xflat = nat_preproc.flatten_X(X[:, :, :, np.newaxis])
     Xflat_raw = nat_preproc.flatten_X(X_raw[:, :, :, np.newaxis])
-
+    pmask_flat = nat_preproc.flatten_X(pup_mask[:, :, :, np.newaxis])
     tdr_results, tdr_weights = do_tdr_dprime_analysis(Xflat_raw,
                                                       Xflat,
                                                       reps_raw,
@@ -2222,16 +2222,37 @@ def plot_stimulus_pair(site='SITE', batch=0, pair=(0,1),
                                                       ptrain_mask=None,
                                                       ptest_mask=None,
                                                       verbose = True)
+
+    if pup_split:
+        tdr_results_lg, _ = do_tdr_dprime_analysis(Xflat_raw,
+                                                   Xflat[:,pmask_flat[0,:]],
+                                                   reps_raw,
+                                                   int(np.sum(pmask_flat[0,:])/2),
+                                                   tdr2_axis=tdr_axis[0],
+                                                   ptrain_mask=None,
+                                                   ptest_mask=None,
+                                                   verbose = True)
+        tdr_results_sm, _ = do_tdr_dprime_analysis(Xflat_raw,
+                                                   Xflat[:,~pmask_flat[0,:]],
+                                                   reps_raw,
+                                                   int(np.sum(~pmask_flat[0,:])/2),
+                                                   tdr2_axis=tdr_axis[0],
+                                                   ptrain_mask=None,
+                                                   ptest_mask=None,
+                                                   verbose = True)
+        dprimelg = tdr_results_lg['dp_opt_test']
+        dprimesm = tdr_results_sm['dp_opt_test']
+
     weights = tdr_weights
     dprime = tdr_results['dp_opt_test']
-    evec = tdr_results['evecs_test'][:, 0] 
+    evec = tdr_results['evecs_test'][:, 0]
     evals = tdr_results['evals_test'][0]  
     wopt = tdr_results['wopt_test']
     cos_du = tdr_results['cos_dU_evec_test'][0, 0]
 
-    print("\n\n\n\n\n\n")
-    print(tdr_weights)
-    print("\n\n\n\n\n\n")
+    #print("\n\n\n\n\n\n")
+    #print(tdr_weights)
+    #print("\n\n\n\n\n\n")
     
     # project all data onto the mean tdr axes
     Xflat = Xflat.T.dot(weights.T).T
@@ -2323,7 +2344,9 @@ def plot_stimulus_pair(site='SITE', batch=0, pair=(0,1),
     ax.set_ylabel(axlabs[1])
     ax.legend(frameon=False)
     if title_string is not None:
-        ax.set_title(f"{title_string}")   
+        ax.set_title(f"{title_string}")
+    elif pup_split:
+        ax.set_title(f"dplg={dprimelg:.1f} dpsm={dprimesm:.1f} delta={(dprimelg-dprimesm):.1f}")
     else:
         ax.set_title(r"$d'^{2} = %s$" 
                         "\n"
