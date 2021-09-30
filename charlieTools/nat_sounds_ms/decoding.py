@@ -2147,7 +2147,9 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=F
 # ================================= Plotting Utilities =========================================
 
 
-def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1', 'dim2'], 
+def plot_stimulus_pair(site='SITE', batch=0, pair=(0,1),
+                       X=None, X_raw=None, X_pup=None, pup_mask=None,
+                       colors=['red', 'blue'], axlabs=['dim1', 'dim2'],
                         ylim=(None, None), xlim=(None, None), ellipse=False, 
                         pup_cmap=False, lv_axis=None, lv_ax_name='LV axis', ax_length=1, 
                         xforms_modelname=None, xforms_signal='pred', reshuf=False, mask_movement=False,
@@ -2160,15 +2162,16 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
         xforms_modelname=None, xforms_signal='pred', reshuf=False
     """
 
-    # load raw data no matter what
-    X_raw, sp_bins, X_pup, pup_mask = load_site(site=site, batch=batch, 
-                                    sim_first_order=False, 
-                                    sim_second_order=False,
-                                    sim_all=False,
-                                    mask_movement=mask_movement,
-                                    xforms_modelname=None,
-                                    regress_pupil=False)
-    if xforms_modelname is not None:
+    # load raw data if not provided
+    if X_raw is None:
+        X_raw, sp_bins, X_pup, pup_mask = load_site(site=site, batch=batch,
+                                        sim_first_order=False,
+                                        sim_second_order=False,
+                                        sim_all=False,
+                                        mask_movement=mask_movement,
+                                        xforms_modelname=None,
+                                        regress_pupil=False)
+    if (X is None) and (xforms_modelname is not None):
         X, sp_bins, X_pup, pup_mask = load_site(site=site, batch=batch, 
                                         sim_first_order=False, 
                                         sim_second_order=False,
@@ -2177,7 +2180,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
                                         xforms_signal=xforms_signal,
                                         reshuf=reshuf,
                                         regress_pupil=False)
-    else:
+    elif X is None:
         X = X_raw.copy()
 
     ncells = X.shape[0]
@@ -2190,11 +2193,12 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     X_raw = X_raw.reshape(ncells, nreps_raw, nstim * nbins)
     X_pup = X_pup.reshape(1, nreps, nstim * nbins)
     pup_mask = pup_mask.reshape(1, nreps, nstim * nbins)
-    sp_bins = sp_bins.reshape(1, sp_bins.shape[1], nstim * nbins)
+    #sp_bins = sp_bins.reshape(1, sp_bins.shape[1], nstim * nbins)
     nstim = nstim * nbins
 
     reps = X.shape[1]
     reps_raw = X_raw.shape[1]
+
     X, _ = nat_preproc.scale_est_val([X], [X])
     X_raw, _ = nat_preproc.scale_est_val([X_raw], [X_raw])
     X = X[0]
@@ -2256,7 +2260,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
 
     # plot results
     # center X, for the sake of visualization. Doesn't affect dprime
-    X = X - X.mean(axis=2, keepdims=True)
+    X = X - X.mean(axis=(1,2), keepdims=True)  # X.mean(axis=2, keepdims=True)
 
     if ax is None:
         f, ax = plt.subplots(1, 1, figsize=(4, 4))
