@@ -2112,10 +2112,11 @@ def shuffle_trials(X, pmask):
         bigidx = np.argwhere(pmask[0, :, stim]).squeeze()
         nsmall = (~pmask[0, :, stim]).sum()
         smallidx = np.argwhere(~pmask[0, :, stim]).squeeze()
-        big_shuf_idx = np.random.choice(bigidx, nbig, replace=False)
-        small_shuf_idx = np.random.choice(smallidx, nsmall, replace=False)
-        Xnew[:, bigidx, stim] = X[:, big_shuf_idx, stim]
-        Xnew[:, smallidx, stim] = X[:, small_shuf_idx, stim]
+        for n in range(X.shape[0]):
+            big_shuf_idx = np.random.choice(bigidx, nbig, replace=False)
+            small_shuf_idx = np.random.choice(smallidx, nsmall, replace=False)
+            Xnew[n, bigidx, stim] = X[n, big_shuf_idx, stim]
+            Xnew[n, smallidx, stim] = X[n, small_shuf_idx, stim]
     return Xnew
 
 
