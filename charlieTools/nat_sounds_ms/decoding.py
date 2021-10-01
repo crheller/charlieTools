@@ -2092,7 +2092,31 @@ def simulate_response(X, pup_mask, sim_first_order=False,
         p_mask = np.ones((1,) + X_big_sim.shape[1:]).astype(np.bool)
         pup_mask = np.concatenate((p_mask, ~p_mask), axis=1) 
 
-    return X, pup_mask       
+    return X, pup_mask
+
+
+def shuffle_trials(X, pmask):
+    """
+    Specialized function to shuffle trials for each stimulus, per neuron, within a given pupil state.
+    Idea is to break within pupil correlations, but preserve overall gain changes etc. between pupil
+    states.
+    
+    X should be shape neuron X reps X stim
+    pmask should be shape 1 X reps X stim (true where pupil = big)
+    """       
+    Xnew = X.copy()
+    if X.shape[0] > pmask[0, :, 0].sum():
+        log.info("WARNING - fewer reps than neurons w/in a pupil state, shuffling won't be complete")
+    for stim in range(X.shape[-1]):
+        nbig = pmask[0, :, stim].sum()
+        bigidx = np.argwhere(pmask[0, :, stim]).squeeze()
+        nsmall = (~pmask[0, :, stim]).sum()
+        smallidx = np.argwhere(~pmask[0, :, stim]).squeeze()
+        big_shuf_idx = np.random.choice(bigidx, nbig, replace=False)
+        small_shuf_idx = np.random.choice(smallidx, nsmall, replace=False)
+        Xnew[:, bigidx, stim] = X[:, big_shuf_idx, stim]
+        Xnew[:, smallidx, stim] = X[:, small_shuf_idx, stim]
+    return Xnew
 
 
 def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=False):
