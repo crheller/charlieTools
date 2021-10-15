@@ -2172,7 +2172,9 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=F
 # ================================= Plotting Utilities =========================================
 
 
-def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1', 'dim2'], 
+def plot_stimulus_pair(site='SITE', batch=0, pair=(0,1),
+                       X=None, X_raw=None, X_pup=None, pup_mask=None,
+                       colors=['red', 'blue'], axlabs=['dim1', 'dim2'],
                         ylim=(None, None), xlim=(None, None), ellipse=False, 
                         pup_cmap=False, lv_axis=None, lv_ax_name='LV axis', ax_length=1, 
                         xforms_modelname=None, xforms_signal='pred', reshuf=False, mask_movement=False,
@@ -2185,15 +2187,16 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
         xforms_modelname=None, xforms_signal='pred', reshuf=False
     """
 
-    # load raw data no matter what
-    X_raw, sp_bins, X_pup, pup_mask = load_site(site=site, batch=batch, 
-                                    sim_first_order=False, 
-                                    sim_second_order=False,
-                                    sim_all=False,
-                                    mask_movement=mask_movement,
-                                    xforms_modelname=None,
-                                    regress_pupil=False)
-    if xforms_modelname is not None:
+    # load raw data if not provided
+    if X_raw is None:
+        X_raw, sp_bins, X_pup, pup_mask = load_site(site=site, batch=batch,
+                                        sim_first_order=False,
+                                        sim_second_order=False,
+                                        sim_all=False,
+                                        mask_movement=mask_movement,
+                                        xforms_modelname=None,
+                                        regress_pupil=False)
+    if (X is None) and (xforms_modelname is not None):
         X, sp_bins, X_pup, pup_mask = load_site(site=site, batch=batch, 
                                         sim_first_order=False, 
                                         sim_second_order=False,
@@ -2202,7 +2205,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
                                         xforms_signal=xforms_signal,
                                         reshuf=reshuf,
                                         regress_pupil=False)
-    else:
+    elif X is None:
         X = X_raw.copy()
 
     ncells = X.shape[0]
@@ -2215,11 +2218,12 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     X_raw = X_raw.reshape(ncells, nreps_raw, nstim * nbins)
     X_pup = X_pup.reshape(1, nreps, nstim * nbins)
     pup_mask = pup_mask.reshape(1, nreps, nstim * nbins)
-    sp_bins = sp_bins.reshape(1, sp_bins.shape[1], nstim * nbins)
+    #sp_bins = sp_bins.reshape(1, sp_bins.shape[1], nstim * nbins)
     nstim = nstim * nbins
 
     reps = X.shape[1]
     reps_raw = X_raw.shape[1]
+
     X, _ = nat_preproc.scale_est_val([X], [X])
     X_raw, _ = nat_preproc.scale_est_val([X_raw], [X_raw])
     X = X[0]
@@ -2234,7 +2238,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
 
     Xflat = nat_preproc.flatten_X(X[:, :, :, np.newaxis])
     Xflat_raw = nat_preproc.flatten_X(X_raw[:, :, :, np.newaxis])
-
+    pmask_flat = nat_preproc.flatten_X(pup_mask[:, :, :, np.newaxis])
     tdr_results, tdr_weights = do_tdr_dprime_analysis(Xflat_raw,
                                                       Xflat,
                                                       reps_raw,
@@ -2243,16 +2247,37 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
                                                       ptrain_mask=None,
                                                       ptest_mask=None,
                                                       verbose = True)
+
+    if pup_split:
+        tdr_results_lg, _ = do_tdr_dprime_analysis(Xflat_raw,
+                                                   Xflat[:,pmask_flat[0,:]],
+                                                   reps_raw,
+                                                   int(np.sum(pmask_flat[0,:])/2),
+                                                   tdr2_axis=tdr_axis[0],
+                                                   ptrain_mask=None,
+                                                   ptest_mask=None,
+                                                   verbose = True)
+        tdr_results_sm, _ = do_tdr_dprime_analysis(Xflat_raw,
+                                                   Xflat[:,~pmask_flat[0,:]],
+                                                   reps_raw,
+                                                   int(np.sum(~pmask_flat[0,:])/2),
+                                                   tdr2_axis=tdr_axis[0],
+                                                   ptrain_mask=None,
+                                                   ptest_mask=None,
+                                                   verbose = True)
+        dprimelg = tdr_results_lg['dp_opt_test']
+        dprimesm = tdr_results_sm['dp_opt_test']
+
     weights = tdr_weights
     dprime = tdr_results['dp_opt_test']
-    evec = tdr_results['evecs_test'][:, 0] 
+    evec = tdr_results['evecs_test'][:, 0]
     evals = tdr_results['evals_test'][0]  
     wopt = tdr_results['wopt_test']
     cos_du = tdr_results['cos_dU_evec_test'][0, 0]
 
-    print("\n\n\n\n\n\n")
-    print(tdr_weights)
-    print("\n\n\n\n\n\n")
+    #print("\n\n\n\n\n\n")
+    #print(tdr_weights)
+    #print("\n\n\n\n\n\n")
     
     # project all data onto the mean tdr axes
     Xflat = Xflat.T.dot(weights.T).T
@@ -2281,7 +2306,7 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
 
     # plot results
     # center X, for the sake of visualization. Doesn't affect dprime
-    X = X - X.mean(axis=2, keepdims=True)
+    X = X - X.mean(axis=(1,2), keepdims=True)  # X.mean(axis=2, keepdims=True)
 
     if ax is None:
         f, ax = plt.subplots(1, 1, figsize=(4, 4))
@@ -2344,7 +2369,9 @@ def plot_stimulus_pair(site, batch, pair, colors=['red', 'blue'], axlabs=['dim1'
     ax.set_ylabel(axlabs[1])
     ax.legend(frameon=False)
     if title_string is not None:
-        ax.set_title(f"{title_string}")   
+        ax.set_title(f"{title_string}")
+    elif pup_split:
+        ax.set_title(f"dplg={dprimelg:.1f} dpsm={dprimesm:.1f} delta={(dprimelg-dprimesm):.1f}")
     else:
         ax.set_title(r"$d'^{2} = %s$" 
                         "\n"
