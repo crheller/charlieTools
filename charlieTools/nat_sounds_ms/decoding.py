@@ -1777,13 +1777,13 @@ def _dprime_diag(A, B):
 
 
 # ================================= Data Loading Utils ========================================
-def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order=False, sim_all=False,
-                                 regress_pupil=False, gain_only=False, dc_only=False, deflate_residual_dim=None, 
-                                 var_first_order=True, use_xforms=False, xforms_modelname=None, xforms_signal='pred', reshuf=False, 
-                                 return_epoch_list=False, mask_movement=False,
-                                 exclude_low_fr=False, threshold=None, 
-                                 use_old_cpn=False,
-                                 special=False, verbose=False):
+def load_site(site, batch, pca_ops=None, pup_ops=None,
+                    regress_pupil=False, gain_only=False, dc_only=False, deflate_residual_dim=None, 
+                    use_xforms=False, xforms_modelname=None, xforms_signal='pred', reshuf=False, 
+                    return_epoch_list=False, mask_movement=False,
+                    exclude_low_fr=False, threshold=None, 
+                    use_old_cpn=False,
+                    special=False, verbose=False):
     """
     Loads recording and does some standard preprocessing for nat sounds decoding analysis
         e.g. masks validation set and removes post stim silence.
@@ -1799,6 +1799,14 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     Note that xforms_modelname is not related to use_xforms. use_xforms is just for regressing out first order pupil,
     while if xforms_modelname is not None, this will load the pred for that modelstring
     reshuf will reshuffle the signals in val['indep'] and val['lv'] -- these are random noise for LV models.
+
+    20.10.2021
+    Add special pupil options (pup_ops) used for specifying the "big" pupil mask.
+    For example, if pup_ops[0] = 'even_split', pup_ops[1]=0, and pup_ops[2]=1/3 then "big pupil" will be defined as the bottom 1/3 of pupil values per stim.
+    if pup_ops[0] = 'max_norm', we have to do some more hairy balancing stuff. In this case we want all pupil where it was less than 33% of its
+    max across all data. For some experiments / animals, this might mean zero-percent of data.
+    pup_ops[1] = lower quant limit
+    pup_ops[2] = upper quant limit
     """
     if 0: #batch in [289, 294, 322]:
         options = {'cellid': site, 'rasterfs': 4, 'batch': batch, 'pupil': True, 'stim': False}
@@ -1959,7 +1967,25 @@ def load_site(site, batch, pca_ops=None, sim_first_order=False, sim_second_order
     epochs = X_pup.shape[2]
     bins = X_pup.shape[3]
     X_pup = X_pup.reshape(1, reps, epochs * bins)
-    pup_mask = X_pup >= np.tile(np.median(X_pup, axis=1), [1, X_pup.shape[1], 1])
+    # 20.10.2021 -- adding some funky options here to do different pupil splitting
+    if pup_ops is None:
+        pup_mask = X_pup >= np.tile(np.median(X_pup, axis=1), [1, X_pup.shape[1], 1])
+    elif pup_ops[0]=='even_split':
+        # doing even split per stim in order to keep things balanced. However, this maybe isn't the "best" approach
+        # because the bottom third for one stim / animal could be very different from another.
+        lq = pup_ops[1]; uq = pup_ops[2]
+        ll = np.tile(np.quantile(X_pup, lq, axis=1), [1, X_pup.shape[1], 1])
+        ul = np.tile(np.quantile(X_pup, uq, axis=1), [1, X_pup.shape[1], 1])
+        pup_mask = (X_pup >= ll) & (X_pup <= ul)
+
+    elif pup_ops[0]=='max_norm':
+        # this is probably the "better" approach, but a bit more tricky to get the analysis working
+        # if there's no data for stim, max sure pup_mask gets set to all False so that we don't try to do
+        # "bp/sp" analysis later on
+        pnorm = X_pup / X_pup.max()
+        lq = pup_ops[1]; uq = pup_ops[2]
+        pup_mask = (pnorm >= lq) & (pnorm <= uq)
+        
     X_pup = X_pup.reshape(1, reps, epochs, bins)
     pup_mask = pup_mask.reshape(1, reps, epochs, bins)
 
