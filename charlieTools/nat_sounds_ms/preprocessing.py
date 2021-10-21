@@ -203,25 +203,34 @@ def get_pupil_range(X_pup, pmask):
     # for each stim:
     for stim in range(X_pup.shape[-1]):
         # what fraction of full range does med(big) - med(small) span?
-        bp = X_pup[0, pmask[0, :, stim], stim]
-        sp = X_pup[0, ~pmask[0, :, stim], stim]
-        _range = np.median(bp) - np.median(sp)
-        _range /= full_range
+        try:
+            bp = X_pup[0, pmask[0, :, stim], stim]
+            sp = X_pup[0, ~pmask[0, :, stim], stim]
+            _range = np.median(bp) - np.median(sp)
+            _range /= full_range
 
-        # get min / max of each stim as fraction of total max
-        _max = bp.max() / max_pup
-        _min = sp.min() / max_pup
+            # get min / max of each stim as fraction of total max
+            _max = bp.max() / max_pup
+            _min = sp.min() / max_pup
 
-        # get variance in big / small (is it roughly balanced?)
-        _bp_var = np.var(bp) / np.var(X_pup)
-        _sp_var = np.var(sp) / np.var(X_pup)
+            # get variance in big / small (is it roughly balanced?)
+            _bp_var = np.var(bp) / np.var(X_pup)
+            _sp_var = np.var(sp) / np.var(X_pup)
 
-        results = {'range': _range,
-                   'max': _max,
-                   'min': _min,
-                   'bp_var': _bp_var,
-                   'sp_var': _sp_var,
-                   'stim': stim}
+            results = {'range': _range,
+                    'max': _max,
+                    'min': _min,
+                    'bp_var': _bp_var,
+                    'sp_var': _sp_var,
+                    'stim': stim}
+        except ValueError:
+                # happens if/when pup_mask is empty for a stim. This should only be the case for specialized pupil spliting code
+                    results = {'range': np.nan,
+                    'max': np.nan,
+                    'min': np.nan,
+                    'bp_var': np.nan,
+                    'sp_var': np.nan,
+                    'stim': stim}
         
         df = df.append([results])
     # add overall results to df to compare across sites
