@@ -92,7 +92,7 @@ def get_est_val_sets(X, pup_mask=None, njacks=10, est_equal_val=False):
     p_val = []
     test_idx = []
     count = 0
-    while count <= njacks:
+    while count < njacks:
         ti = list(np.random.choice(all_idx, n_test_reps, replace=False))
         if ti not in test_idx:
             tri = list(set(all_idx) - set(ti))
@@ -122,13 +122,19 @@ def get_est_val_sets(X, pup_mask=None, njacks=10, est_equal_val=False):
             return est, val
 
 
-def scale_est_val(est, val, mean=True, sd=True):
+def scale_est_val(est, val, full=None, mean=True, sd=True):
     """
     Scale est / val datasets and return normalized data.
     If mean true, mean center data
     If sd true, normalize by std
 
     val gets normalized according to stats measured in est
+
+    29.10.2021 - add "full" option to scale the full recording acording to this
+    est set too. Idea is that we can try projecting the full dataset into the same
+    scaled space for pupil analysis, since otherwise pupil isn't guaranteed to have
+    enough reps in each state, since the jackknife split just goes across all data and 
+    splits 50-50
     """
     est_new = est.copy()
     val_new = val.copy()
@@ -139,6 +145,12 @@ def scale_est_val(est, val, mean=True, sd=True):
     if (len(est[0].shape) != 3) | (len(val[0].shape) != 3):
         raise ValueError("est / val elements must be shape neuron x rep x stim")
 
+    if full is not None:
+        if len(full.shape) == 3:
+            full_new = []
+            for i in range(len(est)):
+                full_new.append(full.copy())
+
     sets = len(est)
 
     for i in range(sets):
@@ -148,14 +160,21 @@ def scale_est_val(est, val, mean=True, sd=True):
         if mean:
             est_new[i] = est_new[i] - u
             val_new[i] = val_new[i] - u
+            if full is not None:
+                full_new[i] = full_new[i] - u
 
         if sd:
             if np.any(std==0):
                 std[np.where(std==0)] = 1
             est_new[i] = est_new[i] / std
             val_new[i] = val_new[i] / std
+            if full is not None: 
+                full_new[i] = full_new[i] / std
 
-    return est_new, val_new
+    if full is not None:
+        return est_new, val_new, full_new
+    else:
+        return est_new, val_new
 
 
 def get_first_pc_per_est(est, method='pca'):

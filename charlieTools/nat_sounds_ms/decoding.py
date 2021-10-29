@@ -479,6 +479,7 @@ def error_prop(x, axis=0):
 # assortment of helper functions to clean up cache script.
 def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None, n_additional_axes=0,
                                     beta1=None, beta2=None, tdr2_axis=None, 
+                                    fullX=None, fullpup=False,
                                     ptrain_mask=None, ptest_mask=None, 
                                     sim1=False, sim2=False, sim12=False, verbose=False):
         """
@@ -490,6 +491,7 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
         """
 
         if sim1 | sim2 | sim12:
+            raise DeprecationWarning("Needs to be re-evaluated. Have change stuff. Will this still work? crh - 29.10.2021")
             # simulate data. If pupil mask is specified, use this to created simulated trials.
             if ptrain_mask is not None:
                 xtest_sim = nat_preproc.fold_X(xtest, nreps=nreps_test, nstim=2, nbins=1)
@@ -540,6 +542,10 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
 
         xtrain_tdr = nat_preproc.fold_X(xtrain_tdr, nreps=nreps_train, nstim=2, nbins=1).squeeze(3)
         xtest_tdr = nat_preproc.fold_X(xtest_tdr, nreps=nreps_test, nstim=2, nbins=1).squeeze(3)
+
+        if fullX is not None:
+            fullX_tdr = (fullX.T @ tdr_weights.T).T
+            fullX_tdr = nat_preproc.fold_X(fullX_tdr, nreps=nreps_train+nreps_test, nstim=2, nbins=1).squeeze(3)
 
         # perform training set decoding analysis (this is so that decoding axis is always defined 
         # using the raw data, not simulated data)
@@ -748,11 +754,18 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
 
         # deal with large / small pupil data
         if ptrain_mask is not None:
-            # perform analysis for big / small pupil data too. Only on test set.
-            A_bp = xtest_tdr[:, ptest_mask[0, :, 0], 0]
-            A_sp = xtest_tdr[:, ~ptest_mask[0, :, 0], 0]
-            B_bp = xtest_tdr[:, ptest_mask[0, :, 1], 1]
-            B_sp = xtest_tdr[:, ~ptest_mask[0, :, 1], 1]
+            if fullpup:
+                # perform analysis for big / small pupil data too. Using all data. So not a "true" jackknife.
+                A_bp = fullX_tdr[:, ptest_mask[0, :, 0], 0]
+                A_sp = fullX_tdr[:, ~ptest_mask[0, :, 0], 0]
+                B_bp = fullX_tdr[:, ptest_mask[0, :, 1], 1]
+                B_sp = fullX_tdr[:, ~ptest_mask[0, :, 1], 1]
+            else:
+                # perform analysis for big / small pupil data too. Only on test set.
+                A_bp = xtest_tdr[:, ptest_mask[0, :, 0], 0]
+                A_sp = xtest_tdr[:, ~ptest_mask[0, :, 0], 0]
+                B_bp = xtest_tdr[:, ptest_mask[0, :, 1], 1]
+                B_sp = xtest_tdr[:, ~ptest_mask[0, :, 1], 1]
 
             # get dprime / dU
             bp_dprime, _, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=tdr_wopt_train)
@@ -2152,8 +2165,9 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=F
     tile the response across time, so the size is bigger. In these cases, we need to create a 
     new pupil mask for this "new" data.
     """
-    if batch==289:
-        batch=322
+    # below is deprecated. modelname batch should match decoding batch now.
+    #if batch==289:
+    #    batch=322
     try:
         xf, ctx = load_model_xform(site, batch, modelname=modelstring)
     except:
