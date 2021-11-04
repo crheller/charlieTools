@@ -21,6 +21,7 @@ from nems_lbhb.baphy_experiment import BAPHYExperiment
 from nems.xform_helper import load_model_xform
 from nems.preprocessing import resp_to_pc
 import nems_lbhb.preprocessing as nems_preproc
+import nems_lbhb.baphy_io as io
 
 import charlieTools.nat_sounds_ms.preprocessing as nat_preproc
 import charlieTools.nat_sounds_ms.dim_reduction as dr
@@ -2172,7 +2173,13 @@ def load_xformsModel(site, batch, signal='pred', modelstring=None, return_meta=F
         xf, ctx = load_model_xform(site, batch, modelname=modelstring)
     except:
         log.info("try loading using cellid instead of site")
-        xf, ctx = load_model_xform([c for c in nd.get_batch_cells(batch).cellid if site in c][0], batch, modelname=modelstring)
+        if '.e' in site:
+            ops = {'cellid': site, 'batch': batch}
+            ops = io.parse_cellid(ops)
+            cellid = ops[0][0]
+            xf, ctx = load_model_xform(cellid, batch, modelname=modelstring)
+        else:
+            xf, ctx = load_model_xform([c for c in nd.get_batch_cells(batch).cellid if site in c][0], batch, modelname=modelstring)
 
     # TODO - do we always want the "pred" signal?
     rec = ctx['val'].copy()
@@ -2513,3 +2520,34 @@ def plot_pair(est, val, nreps_train, nreps_test, train_pmask=None, test_pmask=No
     ax[1].axis('square')
 
     return f
+
+
+# ========================== nems db utils ===================================
+def get_max_pupil(site, force_new=True, rasterfs=4):
+    '''
+    For a site, find all mfiles where pupil has been analyzed and return the max value across all
+    '''
+    sql = f"SELECT respfile, parmfile FROM gDataRaw WHERE cellid like '%%{site}%%' and eyewin=2"
+    results = nd.pd_query(sql)
+    path = results['respfile'].apply(lambda x: x.split('raw/')[0])
+    mfiles = (path + results['parmfile']).values.tolist()
+
+    # majority wins vote for if we load the pup.mat analyses vs. cnn analyses (in cases where both exist). this should be rare
+    old_pup = []
+    new_pup = []
+    for i, mfile in enumerate(mfiles):
+        if os.path.exists(mfile.replace(results['parmfile'].iloc[i], f"sorted/{results['parmfile'].iloc[i].replace('.m', '.pickle')}")):
+            new_pup.append(mfile)
+        else:
+            old_pup.append(mfile)
+    if len(new_pup)>=len(old_pup):
+        mfiles = new_pup
+    elif force_new & (len(new_pup)>0):
+        mfiles = new_pup
+    else:
+        mfiles = old_pup
+    log.info(mfiles)
+    manager = BAPHYExperiment(parmfile=mfiles)
+    rec = manager.get_recording(**{'rasterfs': rasterfs, 'pupil': True, 'resp': False, 'stim': False, 'pupil_variable_name': 'area'})
+
+    return rec['pupil']._data.max()
