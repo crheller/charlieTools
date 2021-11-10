@@ -2546,6 +2546,7 @@ def get_max_pupil(site, force_new=True, rasterfs=4):
         mfiles = new_pup
     else:
         mfiles = old_pup
+    mfiles = np.sort(mfiles).tolist()
     log.info(mfiles)
     manager = BAPHYExperiment(parmfile=mfiles)
     rec = manager.get_recording(**{'rasterfs': rasterfs, 'pupil': True, 'resp': False, 'stim': False, 'pupil_variable_name': 'area'})
