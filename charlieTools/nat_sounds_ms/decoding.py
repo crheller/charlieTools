@@ -544,7 +544,9 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
         xtrain_tdr = nat_preproc.fold_X(xtrain_tdr, nreps=nreps_train, nstim=2, nbins=1).squeeze(3)
         xtest_tdr = nat_preproc.fold_X(xtest_tdr, nreps=nreps_test, nstim=2, nbins=1).squeeze(3)
 
-        if fullX is not None:
+        # we use this if we're doing "cross validation" with full data being projected.
+        # this would just be to boost the n's for low rep sites.
+        if (fullX is not None) & (fullpup):
             fullX_tdr = (fullX.T @ tdr_weights.T).T
             fullX_tdr = nat_preproc.fold_X(fullX_tdr, nreps=nreps_train+nreps_test, nstim=2, nbins=1).squeeze(3)
 
