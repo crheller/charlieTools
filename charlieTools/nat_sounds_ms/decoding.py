@@ -2554,3 +2554,38 @@ def get_max_pupil(site, force_new=True, rasterfs=4):
     rec = manager.get_recording(**{'rasterfs': rasterfs, 'pupil': True, 'resp': False, 'stim': False, 'pupil_variable_name': 'area'})
 
     return rec['pupil']._data.max()
+
+
+def load_FA_model(site, batch, big_psth, small_psth, nreps=2000):
+    """
+    pretty specialized code to load the results of factor analysis model
+    and generate data based on this.
+
+    generate nreps big reps and nreps small reps per stimulus
+    """
+
+    # load the model results. This hardcoding is a bit kludgy
+    path = f"/auto/users/hellerc/results/nat_pupil_ms/factor_analysis/{batch}/{site}/"
+    filename = "factor_analysis.pickle"
+    with open(path + filename, 'rb') as handle:
+        results = pickle.load(handle)
+
+    nstim = big_psth.shape[2]
+    nbins = big_psth.shape[3]
+    ncells = big_psth.shape[0]
+
+    Xsim_big = np.zeros((ncells, nreps, nstim*nbins))
+    Xsim_small = np.zeros((ncells, nreps, nstim*nbins))
+    cov_big = results["final_fit"]["fa_big.sigma_full"]
+    cov_small = results["final_fit"]["fa_small.sigma_full"]
+    for s in range(psth_big.shape[-1]):
+        Xsim_big[:, :, s]= np.random.multivariate_normal(psth_big[:, s], cov=cov_big, size=nreps).T
+        Xsim_small[:, :, s]= np.random.multivariate_normal(psth_small[:, s], cov=cov_small, size=nreps).T
+    
+    # stack into signal matrix and make a new pupil mask to correspond
+    X = np.concatenate((Xsim_big, Xsim_small), axis=1).reshape(ncells, int(nreps*2), nstim, nbins)
+    pbig = True * np.ones((ncells, nreps, nstim, nbins))
+    psmall = False * np.ones((ncells, nreps, nstim, nbins))
+    pup_mask = np.concatenate((pbig, psmall), axis=1)
+
+    return X, pup_mask
