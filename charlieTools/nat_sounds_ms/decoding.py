@@ -2556,7 +2556,7 @@ def get_max_pupil(site, force_new=True, rasterfs=4):
     return rec['pupil']._data.max()
 
 
-def load_FA_model(site, batch, big_psth, small_psth, nreps=2000):
+def load_FA_model(site, batch, big_psth, small_psth, big_var=None, small_var=None, nreps=2000):
     """
     pretty specialized code to load the results of factor analysis model
     and generate data based on this.
@@ -2574,18 +2574,31 @@ def load_FA_model(site, batch, big_psth, small_psth, nreps=2000):
     nbins = big_psth.shape[3]
     ncells = big_psth.shape[0]
 
+    # reshape / squish psths
+    big_psth = big_psth[:, 0, :, :].reshape(ncells, nstim*nbins)
+    small_psth = small_psth[:, 0, :, :].reshape(ncells, nstim*nbins)
+    if big_var is not None:
+        big_var = big_var[:, 0, :, :].reshape(ncells, nstim*nbins)
+        small_var = small_var[:, 0, :, :].reshape(ncells, nstim*nbins)
+
     Xsim_big = np.zeros((ncells, nreps, nstim*nbins))
     Xsim_small = np.zeros((ncells, nreps, nstim*nbins))
     cov_big = results["final_fit"]["fa_big.sigma_full"]
     cov_small = results["final_fit"]["fa_small.sigma_full"]
-    for s in range(psth_big.shape[-1]):
-        Xsim_big[:, :, s]= np.random.multivariate_normal(psth_big[:, s], cov=cov_big, size=nreps).T
-        Xsim_small[:, :, s]= np.random.multivariate_normal(psth_small[:, s], cov=cov_small, size=nreps).T
+    for s in range(big_psth.shape[-1]):
+        _cb = cov_big.copy()
+        _cs = cov_small.copy()
+        if big_var is not None:
+            # model stimulus specific changes in indep. variance
+            np.fill_diagonal(_cb, big_var[:, s])
+            np.fill_diagonal(_cs, small_var[:, s])
+        Xsim_big[:, :, s]= np.random.multivariate_normal(big_psth[:, s], cov=_cb, size=nreps).T
+        Xsim_small[:, :, s]= np.random.multivariate_normal(small_psth[:, s], cov=_cs, size=nreps).T
     
     # stack into signal matrix and make a new pupil mask to correspond
     X = np.concatenate((Xsim_big, Xsim_small), axis=1).reshape(ncells, int(nreps*2), nstim, nbins)
-    pbig = True * np.ones((ncells, nreps, nstim, nbins))
-    psmall = False * np.ones((ncells, nreps, nstim, nbins))
+    pbig = np.ones((1, nreps, nstim, nbins)).astype(bool)
+    psmall = np.zeros((1, nreps, nstim, nbins)).astype(bool)
     pup_mask = np.concatenate((pbig, psmall), axis=1)
 
     return X, pup_mask
