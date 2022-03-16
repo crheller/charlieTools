@@ -2556,7 +2556,7 @@ def get_max_pupil(site, force_new=True, rasterfs=4):
     return rec['pupil']._data.max()
 
 
-def load_FA_model(site, batch, big_psth, small_psth, big_var=None, small_var=None, nreps=2000):
+def load_FA_model(site, batch, big_psth, small_psth, use_indep=False, fix_between_states=False, nreps=2000):
     """
     pretty specialized code to load the results of factor analysis model
     and generate data based on this.
@@ -2577,14 +2577,21 @@ def load_FA_model(site, batch, big_psth, small_psth, big_var=None, small_var=Non
     # reshape / squish psths
     big_psth = big_psth[:, 0, :, :].reshape(ncells, nstim*nbins)
     small_psth = small_psth[:, 0, :, :].reshape(ncells, nstim*nbins)
-    if big_var is not None:
-        big_var = big_var[:, 0, :, :].reshape(ncells, nstim*nbins)
-        small_var = small_var[:, 0, :, :].reshape(ncells, nstim*nbins)
 
     Xsim_big = np.zeros((ncells, nreps, nstim*nbins))
     Xsim_small = np.zeros((ncells, nreps, nstim*nbins))
-    cov_big = results["final_fit"]["fa_big.sigma_full"]
-    cov_small = results["final_fit"]["fa_small.sigma_full"]
+    if use_indep:
+        # no correlations
+        cov_big = results["final_fit"]["fa_big.sigma_ind"]
+        cov_small = results["final_fit"]["fa_small.sigma_ind"]
+    else:
+        cov_big = results["final_fit"]["fa_big.sigma_full"]
+        cov_small = results["final_fit"]["fa_small.sigma_full"]
+    
+    # use same covariance between large and small conditions
+    if fix_between_states:
+        cov_small = cov_big.copy()
+
     for s in range(big_psth.shape[-1]):
         _cb = cov_big.copy()
         _cs = cov_small.copy()
