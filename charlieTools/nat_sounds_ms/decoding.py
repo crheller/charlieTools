@@ -2556,19 +2556,105 @@ def get_max_pupil(site, force_new=True, rasterfs=4):
     return rec['pupil']._data.max()
 
 
-def load_FA_model(site, batch, big_psth, small_psth, use_indep=False, fix_between_states=False, nreps=2000):
+def load_FA_model(site, batch, big_psth, small_psth, sim=1, fa_model="factor_analysis_pca_evoked", nreps=2000):
     """
     pretty specialized code to load the results of factor analysis model
     and generate data based on this.
 
     generate nreps big reps and nreps small reps per stimulus
+
+    sim:
+        1 = change in gain only
+        2 = change in indep only (fixing absolute covariance)
+        3 = change in indep only (fixing relative covariance - so off-diagonals change)
+        4 = change in everything (full FA simulation)
+        # extras:
+        5 = set off-diag to zero, only change single neuron var.
+        6 = set off-diag to zero, fix single neuorn var
     """
+    np.random.seed(123)
+    # load the model results. This hardcoding is a bit kludgy
+    path = f"/auto/users/hellerc/results/nat_pupil_ms/factor_analysis/{batch}/{site}/"
+    filename = f"{fa_model}.pickle"
+    with open(path + filename, 'rb') as handle:
+        results = pickle.load(handle)
+
+    nstim = big_psth.shape[2]
+    nbins = big_psth.shape[3]
+    ncells = big_psth.shape[0]
+
+    # reshape / squish psths
+    big_psth = big_psth[:, 0, :, :].reshape(ncells, nstim*nbins)
+    small_psth = small_psth[:, 0, :, :].reshape(ncells, nstim*nbins)
+
+    Xsim_big = np.zeros((ncells, nreps, nstim*nbins))
+    Xsim_small = np.zeros((ncells, nreps, nstim*nbins))
+
+
+    if sim==1:
+        cov_big = results["final_fit"]["fa_big.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
+        cov_small = results["final_fit"]["fa_big.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
+    elif sim==2:
+        # absolute covariance fixed, but fraction shared variance can change
+        cov_big = results["final_fit"]["fa_big.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
+        cov_small = results["final_fit"]["fa_small.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
+    elif sim==3:
+        # relative covariance fixed, i.e. fraction shared variance can stays the same but absolute covariance can change
+        cov_big = results["final_fit"]["fa_big.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
+        cov_small = results["final_fit"]["fa_small.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
+        # force small to have same corr. coef. as cov_big
+        norm = np.sqrt(np.diag(cov_big)[:, np.newaxis] @ np.diag(cov_big)[np.newaxis, :])
+        corr_big = cov_big / norm # normalize covariance
+        var = np.diag(cov_small) # variance of small pupil          
+        rootV = np.sqrt(var[:, np.newaxis] @ var[np.newaxis, :])
+        cov_small = corr_big * rootV # cov small has same (normalized) correlations as cov_big, but variance like cov_small
+    elif sim==4:
+        cov_big = results["final_fit"]["fa_big.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
+        cov_small = results["final_fit"]["fa_small.sigma_ind"] + results["final_fit"]["fa_small.sigma_shared"]
+    elif sim==5:
+        # diag matrix, entries change between large and small
+        cov_big = results["final_fit"]["fa_big.sigma_ind"]
+        cov_small = results["final_fit"]["fa_small.sigma_ind"]
+    elif sim==6:
+        # diad matrix, entries fixed to big pupil between states
+        cov_big = results["final_fit"]["fa_big.sigma_ind"]
+        cov_small = results["final_fit"]["fa_big.sigma_ind"]
+
+    for s in range(big_psth.shape[-1]):
+        _cb = cov_big.copy()
+        _cs = cov_small.copy()
+        Xsim_big[:, :, s]= np.random.multivariate_normal(big_psth[:, s], cov=_cb, size=nreps).T
+        Xsim_small[:, :, s]= np.random.multivariate_normal(small_psth[:, s], cov=_cs, size=nreps).T
+    
+    # stack into signal matrix and make a new pupil mask to correspond
+    X = np.concatenate((Xsim_big, Xsim_small), axis=1).reshape(ncells, int(nreps*2), nstim, nbins)
+    pbig = np.ones((1, nreps, nstim, nbins)).astype(bool)
+    psmall = np.zeros((1, nreps, nstim, nbins)).astype(bool)
+    pup_mask = np.concatenate((pbig, psmall), axis=1)
+
+    return X, pup_mask
+
+def load_full_FA_model(site, batch, X, pup_mask, big_psth, small_psth, use_indep=False, fix_between_states=False, nreps=2000):
+    """
+    similar to the previous function, but here the idea is that we use the model that was fit across all data so that 
+    factors are shared between the two states. 
+
+    In this case, to get the state-dependent simulations we first project the raw (state-dependent) data onto the FA components 
+    then compute our own covariance matrices.
+
+    This is only relevant for the case where we're simulating everything (not just indep. noise) since we need a state-dependent model
+    of indep. noise in
+    """
+
+    raise NotImplementedError("Haven't finished implementation for this.")
 
     # load the model results. This hardcoding is a bit kludgy
     path = f"/auto/users/hellerc/results/nat_pupil_ms/factor_analysis/{batch}/{site}/"
     filename = "factor_analysis.pickle"
     with open(path + filename, 'rb') as handle:
         results = pickle.load(handle)
+
+    components = results["final_fit"]["fa_all.components_"]
 
     nstim = big_psth.shape[2]
     nbins = big_psth.shape[3]
@@ -2595,10 +2681,6 @@ def load_FA_model(site, batch, big_psth, small_psth, use_indep=False, fix_betwee
     for s in range(big_psth.shape[-1]):
         _cb = cov_big.copy()
         _cs = cov_small.copy()
-        if big_var is not None:
-            # model stimulus specific changes in indep. variance
-            np.fill_diagonal(_cb, big_var[:, s])
-            np.fill_diagonal(_cs, small_var[:, s])
         Xsim_big[:, :, s]= np.random.multivariate_normal(big_psth[:, s], cov=_cb, size=nreps).T
         Xsim_small[:, :, s]= np.random.multivariate_normal(small_psth[:, s], cov=_cs, size=nreps).T
     
