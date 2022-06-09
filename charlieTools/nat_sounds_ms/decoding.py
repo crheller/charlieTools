@@ -187,7 +187,8 @@ class DecodingResults():
             new_df['sem'] = sem
 
             df = df[~df.index.get_level_values('combo').isin(self.spont_stimulus_pairs)]
-            df = new_df.append(df)
+            #df = new_df.append(df)
+            df = pd.concat([new_df, df])
             
             self.array_results[obj] = df.copy()
 
@@ -209,7 +210,8 @@ class DecodingResults():
             new_idx = pd.MultiIndex.from_tuples([pd.Categorical(('spont_{}'.format(stim), n_components)) 
                                 for n_components in sp_ev_df.index], names=['combo', 'n_components']) 
             sp_ev_df.set_index(new_idx, inplace=True)
-            df = sp_ev_df.append(df)
+            #df = sp_ev_df.append(df)
+            df = pd.concat([sp_ev_df, df])
             new_sp_ev_pairs.append('spont_{}'.format(stim))
 
         # remove inividual spont_evoked pairs 
@@ -239,7 +241,8 @@ class DecodingResults():
                 new_df['sem'] = sem
 
                 df = df[~df.index.get_level_values('combo').isin(self.spont_evoked_stimulus_pairs)]
-                df = new_df.append(df)
+                #df = new_df.append(df)
+                df = pd.concat([new_df, df])
                 self.array_results[obj] = df
 
         # update self.spont_evoked_stimulus_pairs
@@ -478,7 +481,7 @@ def error_prop(x, axis=0):
 
 # =============================================== random helpers ==========================================================
 # assortment of helper functions to clean up cache script.
-def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None, n_additional_axes=0,
+def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, ddr_space=None, decoding_axis=None, tdr_data=None, n_additional_axes=0,
                                     beta1=None, beta2=None, tdr2_axis=None, 
                                     fullX=None, fullpup=False,
                                     ptrain_mask=None, ptest_mask=None, 
@@ -489,6 +492,8 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
         return results in a dictionary
 
         NEW: 06.04.2020 - Can perform simulation here, in TDR space
+        NEW: 09.06.2022 - Can simply pass in ddr_space. In this case, don't need to perform ddr (tdr),
+            just use these axes. Same for decoding axis. If this is not None, just pass this into the compute_dprime function as wopt
         """
 
         if sim1 | sim2 | sim12:
@@ -521,22 +526,27 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             else:
                 raise NotImplementedError("Can't do simulations without specifying a pupil mask. TODO: update decoding.simulate_response to handle this")
         
-        if n_additional_axes==-1:
-            naa = 0
-        else:
-            naa = n_additional_axes
-        tdr = dr.TDR(tdr2_init=tdr2_axis, n_additional_axes=naa)
-        if tdr_data is None:
-            Y = dr.get_one_hot_matrix(ncategories=2, nreps=nreps_train)
-            tdr.fit(xtrain.T, Y.T)
-        else:
-            Y = dr.get_one_hot_matrix(ncategories=2, nreps=tdr_data[1])
-            tdr.fit(tdr_data[0].T, Y.T)
+        # fit TDR and get tdr_weights to perform decoding in TDR (dDR) space
+        if ddr_space is None:
+            if n_additional_axes==-1:
+                naa = 0
+            else:
+                naa = n_additional_axes
+            tdr = dr.TDR(tdr2_init=tdr2_axis, n_additional_axes=naa)
+            if tdr_data is None:
+                Y = dr.get_one_hot_matrix(ncategories=2, nreps=nreps_train)
+                tdr.fit(xtrain.T, Y.T)
+            else:
+                Y = dr.get_one_hot_matrix(ncategories=2, nreps=tdr_data[1])
+                tdr.fit(tdr_data[0].T, Y.T)
 
-        if n_additional_axes==-1:
-            tdr.weights = tdr.weights[[0], :]
+            if n_additional_axes==-1:
+                tdr.weights = tdr.weights[[0], :]
 
-        tdr_weights = tdr.weights
+            tdr_weights = tdr.weights
+        else:
+            # decoding space is defined beforehand, in a custom way (e.g. using all stimuli)
+            tdr_weights = ddr_space
 
         xtrain_tdr = (xtrain.T @ tdr_weights.T).T
         xtest_tdr = (xtest.T @ tdr_weights.T).T
@@ -552,10 +562,11 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
 
         # perform training set decoding analysis (this is so that decoding axis is always defined 
         # using the raw data, not simulated data)
+        # NOTE: we never pass decoding_axis as an argument to the train set
         tdr_train_var = np.var(xtrain_tdr.T @ tdr_weights)  / np.var(xtrain)
 
         tdr_dp_train, tdr_wopt_train, tdr_evals_train, tdr_evecs_train, evec_sim_train, tdr_dU_train = \
-                                compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1])
+                                compute_dprime(xtrain_tdr[:, :, 0], xtrain_tdr[:, :, 1], wopt=None)
 
         # compute dprime metrics diag decoder
         if n_additional_axes >= 0:
@@ -567,12 +578,18 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
         # now, compute dprime on the test set
         tdr_test_var = np.var(xtest_tdr.T @ tdr_weights)  / np.var(xtest)
 
-        # compute dprime metrics raw 
-        tdr_dp_test, tdr_wopt_test, tdr_evals_test, tdr_evecs_test, evec_sim_test, tdr_dU_test = \
-                                compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], wopt=tdr_wopt_train)
+        # compute dprime metrics raw (this will use fixed 'decoding axis' if that's what the train set used)
+        if decoding_axis is None:
+            tdr_dp_test, tdr_wopt_test, tdr_evals_test, tdr_evecs_test, evec_sim_test, tdr_dU_test = \
+                                    compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], wopt=tdr_wopt_train)
+            # overwrite test decoder with training, since it's fixed
+            tdr_wopt_test = tdr_wopt_train
+        else:
+            tdr_dp_test, tdr_wopt_test, tdr_evals_test, tdr_evecs_test, evec_sim_test, tdr_dU_test = \
+                                    compute_dprime(xtest_tdr[:, :, 0], xtest_tdr[:, :, 1], wopt=decoding_axis)
 
-        # overwrite test decoder with training, since it's fixed
-        tdr_wopt_test = tdr_wopt_train
+            # overwrite test decoder with decoding axis, since it's fixed
+            tdr_wopt_test = decoding_axis
 
         # compute dprime diag on test set
         if n_additional_axes >= 0:
@@ -600,13 +617,13 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
             # project eigenvectors, dU, and wopt back into N-dimensional space
             # in order to investigate which neurons contribute to signal vs. noise
             # (think this just needs to be done for train set)
-            dU_all = tdr_dU_train.dot(tdr.weights)
-            wopt_all = tdr_wopt_train.T.dot(tdr.weights).T
-            evecs_all = tdr_evecs_train.dot(tdr.weights).T
+            dU_all = tdr_dU_train.dot(tdr_weights)
+            wopt_all = tdr_wopt_train.T.dot(tdr_weights).T
+            evecs_all = tdr_evecs_train.dot(tdr_weights).T
 
             # also do for test (except for wopt which is defined on train)
-            dU_all_test = tdr_dU_test.dot(tdr.weights)
-            evecs_all_test = tdr_evecs_test.dot(tdr.weights).T
+            dU_all_test = tdr_dU_test.dot(tdr_weights)
+            evecs_all_test = tdr_evecs_test.dot(tdr_weights).T
 
             # calculate angle between responses
             # in raw response space
@@ -770,9 +787,13 @@ def do_tdr_dprime_analysis(xtrain, xtest, nreps_train, nreps_test, tdr_data=None
                 B_bp = xtest_tdr[:, ptest_mask[0, :, 1], 1]
                 B_sp = xtest_tdr[:, ~ptest_mask[0, :, 1], 1]
 
-            # get dprime / dU
-            bp_dprime, _, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=tdr_wopt_train)
-            sp_dprime, _, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=tdr_wopt_train)
+            # get dprime / dU (same thing here, if decoding_axis is not None, then training data used it.)
+            if decoding_axis is None:
+                bp_dprime, _, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=tdr_wopt_train)
+                sp_dprime, _, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=tdr_wopt_train)
+            else:
+                bp_dprime, _, _, _, _, bp_dU = compute_dprime(A_bp, B_bp, wopt=decoding_axis)
+                sp_dprime, _, _, _, _, sp_dU = compute_dprime(A_sp, B_sp, wopt=decoding_axis)
 
             if n_additional_axes >= 0:
                 # get pupil-dependent variance along the prinicple noise axes (analogous to lambda)

@@ -82,12 +82,14 @@ def get_category(e1, e2):
         raise ValueError(f"Could not find a category match for {e1} / {e2}")
 
 
-def do_decoding(x1, x2, axes):
+def do_decoding(x1, x2, axes, wopt=None):
     """
     x1/x2 are response to a stimulus (neuron x reps)
     axes are the loading vectors to project on before computing dprime
     """
     x1 = x1.T.dot(axes.T)
     x2 = x2.T.dot(axes.T)
-    output = compute_dprime(x1.T, x2.T, diag=False, wopt=None)
+    output = compute_dprime(x1.T, x2.T, diag=False, wopt=wopt)
     return output
+
+

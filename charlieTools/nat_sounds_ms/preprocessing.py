@@ -203,6 +203,51 @@ def get_first_pc_per_est(est, method='pca'):
         return factors
 
 
+def get_fixed_ddr_space_per_est(est, stimDims, noiseDims):
+    """
+    est is a list of validation response matrices. For each matrix, 
+    perform PCA on the psths. Save "stimDims" PCs. Then,
+    deflate the matrix by these PCs. Compute left over psths.
+    Deflate by left over psths. Compute left over "noise" PCs. Keep 
+    the top "noiseDims" of these.
+    Return a list with the ddr space projection weights for each val set.
+    Weights are shape (stimDims+noiseDims X nNeurons)
+    """
+    # each el in val is shape (neuron x reps x stim)
+    ddr_weights = []
+    for e in est:
+        # get stim space
+        if stimDims>0:
+            u = e.mean(axis=1)
+            pca = PCA(n_components=stimDims)
+            pca.fit(u.T)
+            stim_weights = pca.components_
+            psth_projection = e.T.dot(stim_weights.T).dot(stim_weights).T
+        else:
+            stim_weights = None
+            psth_projection = np.zeros(e.shape)
+
+        # get noise components
+        if noiseDims>0:
+            stim_residual = e - psth_projection
+            u = stim_residual.mean(axis=1, keepdims=True)
+            pca = PCA(n_components=noiseDims)
+            pca.fit((stim_residual - u).reshape(e.shape[0], -1).T)
+            noise_weights = pca.components_
+        else:
+            noise_weights = None
+        
+        if noise_weights is None:
+            weights = stim_weights
+        elif stim_weights is None:
+            weights = noise_weights
+        else:
+            weights = np.concatenate((stim_weights, noise_weights), axis=0)
+        ddr_weights.append(weights)
+    return ddr_weights
+
+
+
 def get_pupil_range(X_pup, pmask):
     """
     pup_mask is a mask of shape X_pup that splits each stim bin in 
@@ -244,20 +289,20 @@ def get_pupil_range(X_pup, pmask):
                     'stim': stim}
         except ValueError:
                 # happens if/when pup_mask is empty for a stim. This should only be the case for specialized pupil spliting code
-                    results = {'range': np.nan,
-                    'max': np.nan,
-                    'min': np.nan,
-                    'bp_var': np.nan,
-                    'sp_var': np.nan,
-                    'stim': stim}
+                    results = {'range': [np.nan],
+                    'max': [np.nan],
+                    'min': [np.nan],
+                    'bp_var': [np.nan],
+                    'sp_var': [np.nan],
+                    'stim': [stim]}
         
-        df = df.append([results])
+        df = pd.concat([df, pd.DataFrame.from_dict(results, orient="index").T])
     # add overall results to df to compare across sites
-    results = {'range': full_range,
-               'max': max_pup,
-               'min': min_pup,
-               'bp_var': np.nan,
-               'sp_var': np.nan,
-               'stim': 'all'}
-    df = df.append([results])
+    results = {'range': [full_range],
+               'max': [max_pup],
+               'min': [min_pup],
+               'bp_var': [np.nan],
+               'sp_var': [np.nan],
+               'stim': ['all']}
+    df = pd.concat([df, pd.DataFrame.from_dict(results, orient="index").T])
     return df
