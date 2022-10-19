@@ -5,7 +5,7 @@ import nems_lbhb.tin_helpers as thelp
 import numpy as np
 import matplotlib.pyplot as plt
 
-def dump_ellipse_plot(site, batch, filename, mask=["HIT_TRIAL", "MISS_TRIAL", "CORRECT_REJECT_TRIAL", "PASSIVE_EXPERIMENT"]):
+def dump_ellipse_plot(site, batch, filename=None, noise_space="global", mask=["HIT_TRIAL", "MISS_TRIAL", "CORRECT_REJECT_TRIAL", "PASSIVE_EXPERIMENT"]):
     amask = [m for m in mask if m!="PASSIVE_EXPERIMENT"]
     pmask = ["PASSIVE_EXPERIMENT"]
     Xa, _ = loaders.load_tbp_for_decoding(site=site, 
@@ -46,6 +46,7 @@ def dump_ellipse_plot(site, batch, filename, mask=["HIT_TRIAL", "MISS_TRIAL", "C
         # define decoding space, then project Xa / Xp into this space
         decoding_space = decoding.get_decoding_space(Xcat, [("TARGET", "CATCH")], 
                                                 method="dDR", 
+                                                noise_space=noise_space,
                                                 ndims=2)
 
         # dim reduction axes
@@ -90,4 +91,5 @@ def dump_ellipse_plot(site, batch, filename, mask=["HIT_TRIAL", "MISS_TRIAL", "C
         # fi plotting error, plot empthy fig
         f, ax = plt.subplots(1,1,figsize=(5,5))
 
-    f.savefig(filename)
+    if filename is not None:
+        f.savefig(filename)

@@ -2577,7 +2577,7 @@ def get_max_pupil(site, force_new=True, rasterfs=4):
     return rec['pupil']._data.max()
 
 
-def load_FA_model(site, batch, big_psth, small_psth, sim=1, fa_model="factor_analysis_pca_evoked", nreps=2000):
+def load_FA_model(site, batch, big_psth, small_psth, sim=1, rr=None, fa_model="factor_analysis_pca_evoked", nreps=2000):
     """
     pretty specialized code to load the results of factor analysis model
     and generate data based on this.
@@ -2585,6 +2585,7 @@ def load_FA_model(site, batch, big_psth, small_psth, sim=1, fa_model="factor_ana
     generate nreps big reps and nreps small reps per stimulus
 
     sim:
+        0 = no change (null) model
         1 = change in gain only
         2 = change in indep only (fixing absolute covariance)
         3 = change in indep only (fixing relative covariance - so off-diagonals change)
@@ -2592,6 +2593,7 @@ def load_FA_model(site, batch, big_psth, small_psth, sim=1, fa_model="factor_ana
         # extras:
         5 = set off-diag to zero, only change single neuron var.
         6 = set off-diag to zero, fix single neuorn var
+        7 = no change (and no correlations at all)
     """
     np.random.seed(123)
     # load the model results. This hardcoding is a bit kludgy
@@ -2599,6 +2601,21 @@ def load_FA_model(site, batch, big_psth, small_psth, sim=1, fa_model="factor_ana
     filename = f"{fa_model}.pickle"
     with open(path + filename, 'rb') as handle:
         results = pickle.load(handle)
+
+    # if reduced rank, then compute the new, reduced rank shared matrix here (doesn't apply for diag)
+    def sigma_shared(components):
+        return (components.T @ components)
+    if rr is not None:
+        big_factors_unique = results["final_fit"]["fa_big.components_"][:rr, :]
+        small_factors_unique = results["final_fit"]["fa_small.components_"][:rr, :]
+        # then, share the rest (big for both)
+        factors_shared = results["final_fit"]["fa_big.components_"][rr:, :]
+        if factors_shared.shape[0]>0:
+            results["final_fit"]["fa_big.sigma_shared"] = sigma_shared(np.concatenate((big_factors_unique, factors_shared), axis=0))
+            results["final_fit"]["fa_small.sigma_shared"] = sigma_shared(np.concatenate((small_factors_unique, factors_shared), axis=0))
+        else:
+            results["final_fit"]["fa_big.sigma_shared"] = sigma_shared(big_factors_unique)
+            results["final_fit"]["fa_small.sigma_shared"] = sigma_shared(small_factors_unique)
 
     nstim = big_psth.shape[2]
     nbins = big_psth.shape[3]
@@ -2611,7 +2628,10 @@ def load_FA_model(site, batch, big_psth, small_psth, sim=1, fa_model="factor_ana
     Xsim_big = np.zeros((ncells, nreps, nstim*nbins))
     Xsim_small = np.zeros((ncells, nreps, nstim*nbins))
 
-
+    if sim==0:
+        cov_big = results["final_fit"]["fa_big.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
+        cov_small = results["final_fit"]["fa_big.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
+        small_psth = big_psth
     if sim==1:
         cov_big = results["final_fit"]["fa_big.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
         cov_small = results["final_fit"]["fa_big.sigma_ind"] + results["final_fit"]["fa_big.sigma_shared"]
@@ -2640,9 +2660,13 @@ def load_FA_model(site, batch, big_psth, small_psth, sim=1, fa_model="factor_ana
         # diad matrix, entries fixed to big pupil between states
         cov_big = results["final_fit"]["fa_big.sigma_ind"]
         cov_small = results["final_fit"]["fa_big.sigma_ind"]
+    elif sim==7:
+        cov_big = results["final_fit"]["fa_big.sigma_ind"]
+        cov_small = results["final_fit"]["fa_big.sigma_ind"]
+        small_psth = big_psth
 
     for s in range(big_psth.shape[-1]):
-        _cb = cov_big.copy()
+        _cb = cov_big.copy()            
         _cs = cov_small.copy()
         Xsim_big[:, :, s]= np.random.multivariate_normal(big_psth[:, s], cov=_cb, size=nreps).T
         Xsim_small[:, :, s]= np.random.multivariate_normal(small_psth[:, s], cov=_cs, size=nreps).T

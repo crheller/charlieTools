@@ -30,8 +30,6 @@ def get_decoding_space(X, pairs,
     Return dictionary of transformation matrices for each
     stimulus pair
     """
-    if common_space != False:
-        raise ValueError("Common space decoding not impletemented yet")
     # for each stimulus pair, compute the decoding axis
     loading = []
     if method == "dDR":
@@ -47,7 +45,22 @@ def get_decoding_space(X, pairs,
         elif noise_space=="perstim":
             perstim = True
         else:
-            raise ValueError(f"method for noise calculation: {noise_space} is not implemented yet")    
+            raise ValueError(f"method for noise calculation: {noise_space} is not implemented yet") 
+
+        if common_space:
+            # very specialized bit of code. Idea is that we use Target vs. Catch space for all pairs
+            targets = [t for t in X.keys() if "TAR_" in t]
+            catch = [c for c in X.keys() if "CAT_" in c]
+            tar_resp = []
+            for t in targets:
+                tar_resp.append(X[t])
+            cat_resp = []
+            for c in catch:
+                cat_resp.append(X[c])
+            X["TARGET"] = np.concatenate(tar_resp, axis=1)
+            X["CATCH"] = np.concatenate(cat_resp, axis=1)
+            pairs = [("TARGET", "CATCH")]*len(pairs)
+
         for p in pairs:
             if perstim==False:
                 ddr = dDR(ddr2_init=noise_axis, n_additional_axes=additional_axes)
