@@ -91,6 +91,8 @@ def get_category(e1, e2):
         return "tar_cat"
     elif (("TAR_" in e1) & ("STIM_" in e2)) | (("STIM_" in e1) & ("TAR_" in e2)):
         return "tar_ref"
+    elif ((e1=="TARGET") & (e2=="CATCH")) | ((e2=="TARGET") & (e1=="CATCH")):
+        return "aTAR_aCAT"
     else:
         raise ValueError(f"Could not find a category match for {e1} / {e2}")
 

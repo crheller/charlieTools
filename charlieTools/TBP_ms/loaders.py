@@ -39,6 +39,7 @@ def load_tbp_for_decoding(site, batch, mask, fs=10, wins=0.1, wine=0.4, collapse
     p = {k: v.transpose([1, 0, -1]) for k, v in p.items()}
 
     if (len(mask) > 1) & ("PASSIVE_EXPERIMENT" in mask) & balance:
+        np.random.seed(123)
         # balance active vs. passive trials
         rnew = rec.copy()
         rnew = rnew.create_mask(True)
