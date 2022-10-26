@@ -4,6 +4,7 @@ data loading utilities for TBP data
 from nems_lbhb.baphy_experiment import BAPHYExperiment
 import nems_lbhb.tin_helpers as thelp
 import numpy as np
+import pickle
 
 def load_tbp_for_decoding(site, batch, mask, fs=10, wins=0.1, wine=0.4, collapse=True, recache=False, balance=False):
     """
@@ -55,3 +56,97 @@ def load_tbp_for_decoding(site, batch, mask, fs=10, wins=0.1, wine=0.4, collapse
             r[s] = r[s][:, choose, :]
             p[s] = p[s][:, choose, :]
     return r, p 
+
+
+def load_FA_model(site, batch, psth, state, sim=1, rr=None, fa_model="FA", nreps=2000):
+    """
+    pretty specialized code to load the results of factor analysis model
+    and generate data based on this. Since only one psth, if you want to manipulate first
+    order (e.g. swap psth for active / passive) that has to happen outside this function.
+
+    psth should be a dictionary with entries of len nCells
+    return a dictionary with entries nCells x nreps (simulated)
+
+    generate nreps per stimulus
+
+    state = active or passive
+
+    sim:
+        0 = no change (null) model
+        1 = change in gain only
+        2 = change in indep only (fixing absolute covariance)
+        3 = change in indep only (fixing relative covariance - so off-diagonals change)
+        4 = change in everything (full FA simulation)
+        # extras:
+        5 = set off-diag to zero, only change single neuron var.
+        6 = set off-diag to zero, fix single neuorn var
+        7 = no change (and no correlations at all)
+    """
+    np.random.seed(123)
+    # load the model results. This hardcoding is a bit kludgy
+    path = f"/auto/users/hellerc/results/TBP-ms/factor_analysis/{batch}/{site}/"
+    filename = f"{fa_model}.pickle"
+    with open(path + filename, 'rb') as handle:
+        results = pickle.load(handle)
+
+    # if reduced rank, then compute the new, reduced rank shared matrix here (doesn't apply for diag)
+    def sigma_shared(components):
+        return (components.T @ components)
+    if rr is not None:
+        active_factors_unique = results["final_fit"]["fa_active.components_"][:rr, :]
+        passive_factors_unique = results["final_fit"]["fa_passive.components_"][:rr, :]
+        # then, share the rest (big for both)
+        factors_shared = results["final_fit"]["fa_active.components_"][rr:, :]
+        if factors_shared.shape[0]>0:
+            results["final_fit"]["fa_active.sigma_shared"] = sigma_shared(np.concatenate((active_factors_unique, factors_shared), axis=0))
+            results["final_fit"]["fa_passive.sigma_shared"] = sigma_shared(np.concatenate((passive_factors_unique, factors_shared), axis=0))
+        else:
+            results["final_fit"]["fa_active.sigma_shared"] = sigma_shared(active_factors_unique)
+            results["final_fit"]["fa_passive.sigma_shared"] = sigma_shared(passive_factors_unique)
+
+    Xsim = dict.fromkeys(psth.keys())
+    if sim==0:
+        cov_active = results["final_fit"]["fa_active.sigma_ind"] + results["final_fit"]["fa_active.sigma_shared"]
+        cov_passive = results["final_fit"]["fa_active.sigma_ind"] + results["final_fit"]["fa_active.sigma_shared"]
+    if sim==1:
+        cov_active = results["final_fit"]["fa_active.sigma_ind"] + results["final_fit"]["fa_active.sigma_shared"]
+        cov_passive = results["final_fit"]["fa_active.sigma_ind"] + results["final_fit"]["fa_active.sigma_shared"]
+    elif sim==2:
+        # absolute covariance fixed, but fraction shared variance can change
+        cov_active = results["final_fit"]["fa_active.sigma_ind"] + results["final_fit"]["fa_active.sigma_shared"]
+        cov_passive = results["final_fit"]["fa_passive.sigma_ind"] + results["final_fit"]["fa_active.sigma_shared"]
+    elif sim==3:
+        # relative covariance fixed, i.e. fraction shared variance can stays the same but absolute covariance can change
+        cov_active = results["final_fit"]["fa_active.sigma_ind"] + results["final_fit"]["fa_active.sigma_shared"]
+        cov_passive = results["final_fit"]["fa_passive.sigma_ind"] + results["final_fit"]["fa_active.sigma_shared"]
+        # force small to have same corr. coef. as cov_active
+        norm = np.sqrt(np.diag(cov_active)[:, np.newaxis] @ np.diag(cov_active)[np.newaxis, :])
+        corr_active = cov_active / norm # normalize covariance
+        var = np.diag(cov_passive) # variance of small pupil          
+        rootV = np.sqrt(var[:, np.newaxis] @ var[np.newaxis, :])
+        cov_passive = corr_active * rootV # cov small has same (normalized) correlations as cov_active, but variance like cov_passive
+    elif sim==4:
+        cov_active = results["final_fit"]["fa_active.sigma_ind"] + results["final_fit"]["fa_active.sigma_shared"]
+        cov_passive = results["final_fit"]["fa_passive.sigma_ind"] + results["final_fit"]["fa_passive.sigma_shared"]
+    elif sim==5:
+        # diag matrix, entries change between large and small
+        cov_active = results["final_fit"]["fa_active.sigma_ind"]
+        cov_passive = results["final_fit"]["fa_passive.sigma_ind"]
+    elif sim==6:
+        # diag matrix, entries fixed to big pupil between states
+        cov_active = results["final_fit"]["fa_active.sigma_ind"]
+        cov_passive = results["final_fit"]["fa_active.sigma_ind"]
+    elif sim==7:
+        cov_active = results["final_fit"]["fa_active.sigma_ind"]
+        cov_passive = results["final_fit"]["fa_active.sigma_ind"]
+
+    for s, k in enumerate(psth.keys()):
+        _ca = cov_active.copy()            
+        _cp = cov_passive.copy()
+        if state=="active":
+            cov_to_use = _ca
+        elif state=="passive":
+            cov_to_use = _cp
+        Xsim[k] = np.random.multivariate_normal(psth[k], cov=cov_to_use, size=nreps).T
+
+    return Xsim
