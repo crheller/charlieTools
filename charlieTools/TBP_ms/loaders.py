@@ -150,3 +150,92 @@ def load_FA_model(site, batch, psth, state, sim=1, rr=None, fa_model="FA", nreps
         Xsim[k] = np.random.multivariate_normal(psth[k], cov=cov_to_use, size=nreps).T
 
     return Xsim
+
+def load_FA_model_perstim(site, batch, psth, state, sim=1, fa_model="FA_perstim", nreps=2000):
+    """
+    Only distinct from the above function in that this loads / uses per-stimulus FA results
+
+    pretty specialized code to load the results of factor analysis model
+    and generate data based on this. Since only one psth, if you want to manipulate first
+    order (e.g. swap psth for active / passive) that has to happen outside this function.
+
+    psth should be a dictionary with entries of len nCells
+    return a dictionary with entries nCells x nreps (simulated)
+
+    generate nreps per stimulus
+
+    state = active or passive
+
+    sim:
+        0 = no change (null) model
+        1 = change in gain only
+        2 = change in indep only (fixing absolute covariance)
+        3 = change in indep only (fixing relative covariance - so off-diagonals change)
+        4 = change in everything (full FA simulation)
+        # extras:
+        5 = set off-diag to zero, only change single neuron var.
+        6 = set off-diag to zero, fix single neuorn var
+        7 = no change (and no correlations at all)
+    """
+    np.random.seed(123)
+    # load the model results. This hardcoding is a bit kludgy
+    path = f"/auto/users/hellerc/results/TBP-ms/factor_analysis/{batch}/{site}/"
+    filename = f"{fa_model}.pickle"
+    with open(path + filename, 'rb') as handle:
+        results = pickle.load(handle)
+
+    cov_active = dict.fromkeys(psth.keys())
+    cov_passive = dict.fromkeys(psth.keys())
+    keep_keys = []
+    for k in psth.keys():
+        try:
+            if sim==0:
+                cov_active[k] = results["active"][k]["sigma_ind"] + results["active"][k]["sigma_shared"]
+                cov_passive[k] = results["active"][k]["sigma_ind"] + results["active"][k]["sigma_shared"]
+            if sim==1:
+                cov_active[k] = results["active"][k]["sigma_ind"] + results["active"][k]["sigma_shared"]
+                cov_passive[k] = results["active"][k]["sigma_ind"] + results["active"][k]["sigma_shared"]
+            elif sim==2:
+                # absolute covariance fixed, but fraction shared variance can change
+                cov_active[k] = results["active"][k]["sigma_ind"] + results["active"][k]["sigma_shared"]
+                cov_passive[k] = results["passive"][k]["sigma_ind"] + results["active"][k]["sigma_shared"]
+            elif sim==3:
+                # relative covariance fixed, i.e. fraction shared variance can stays the same but absolute covariance can change
+                cov_active[k] = results["active"][k]["sigma_ind"] + results["active"][k]["sigma_shared"]
+                cov_passive[k] = results["passive"][k]["sigma_ind"] + results["active"][k]["sigma_shared"]
+                # force small to have same corr. coef. as cov_active
+                norm = np.sqrt(np.diag(cov_active[k])[:, np.newaxis] @ np.diag(cov_active[k])[np.newaxis, :])
+                corr_active = cov_active[k] / norm # normalize covariance
+                var = np.diag(cov_passive[k]) # variance of small pupil          
+                rootV = np.sqrt(var[:, np.newaxis] @ var[np.newaxis, :])
+                cov_passive[k] = corr_active * rootV # cov small has same (normalized) correlations as cov_active, but variance like cov_passive
+            elif sim==4:
+                cov_active[k] = results["active"][k]["sigma_ind"] + results["active"][k]["sigma_shared"]
+                cov_passive[k] = results["passive"][k]["sigma_ind"] + results["passive"][k]["sigma_shared"]
+            elif sim==5:
+                # diag matrix, entries change between large and small
+                cov_active[k] = results["active"][k]["sigma_ind"]
+                cov_passive[k] = results["passive"][k]["sigma_ind"]
+            elif sim==6:
+                # diag matrix, entries fixed to big pupil between states
+                cov_active[k] = results["active"][k]["sigma_ind"]
+                cov_passive[k] = results["passive"][k]["sigma_ind"]
+            elif sim==7:
+                cov_active[k] = results["active"][k]["sigma_ind"]
+                cov_passive[k] = results["active"][k]["sigma_ind"]
+
+            keep_keys.append(k)
+        except KeyError:
+            print(f"Missing key {k}. Skip simulation for this epoch")
+
+    Xsim = dict.fromkeys(keep_keys)
+    for k in keep_keys:
+        _ca = cov_active[k].copy()            
+        _cp = cov_passive[k].copy()
+        if state=="active":
+            cov_to_use = _ca
+        elif state=="passive":
+            cov_to_use = _cp
+        Xsim[k] = np.random.multivariate_normal(psth[k], cov=cov_to_use, size=nreps).T
+
+    return Xsim
