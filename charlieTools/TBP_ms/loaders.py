@@ -1,17 +1,22 @@
 """
 data loading utilities for TBP data
 """
+import nems_lbhb.preprocessing as preproc
 from nems_lbhb.baphy_experiment import BAPHYExperiment
 import nems_lbhb.tin_helpers as thelp
 import numpy as np
 import pickle
 
-def load_tbp_for_decoding(site, batch, mask, fs=10, wins=0.1, wine=0.4, collapse=True, recache=False, balance=False):
+def load_tbp_for_decoding(site, batch, mask, fs=10, wins=0.1, wine=0.4, collapse=True, 
+                    recache=False, balance=False, pupexclude=False):
     """
     mask is list of epoch categories (e.g. HIT_TRIAL) to include in the returned data
 
     balance: If true, on a per stimulus basis, make sure there are equal number of 
         active and passive trials (using random subsampling of larger category)
+
+    pupexclude: If true and mask=["PASSIVE_EXPERIMENT"], exclude trials where pupil size does
+        not match active distribution of pupil size.
 
     return: 
         X - neuron x rep x time bin (spike counts dictionary for each epoch)
@@ -23,6 +28,15 @@ def load_tbp_for_decoding(site, batch, mask, fs=10, wins=0.1, wine=0.4, collapse
     rec['resp'] = rec['resp'].rasterize()
     rec = rec.create_mask(True)
     rec = rec.and_mask(mask)
+    if pupexclude & ("PASSIVE_EXPERIMENT" in mask):
+        _r = rec.copy()
+        _r = _r.create_mask(True)
+        _r = _r.and_mask(["CORRECT_REJECT_TRIAL", "HIT_TRIAL", "MISS_TRIAL"])
+        cutoff = rec['pupil']._data[_r["mask"]._data].mean() - (2 * rec['pupil']._data[_r["mask"]._data].std())
+        options = {'state': 'big', 'method': 'user_def_value', 'cutoff': cutoff, 'collapse': True, 'epoch': ['REFERENCE', 'TARGET', 'CATCH']}
+        pass_big_mask = preproc.create_pupil_mask(rec, **options)['mask']
+        rec["mask"] = rec['mask']._modified_copy(pass_big_mask._data)
+
     # get tbp epochs and create spike matrix using mask
     _, _, all_stim = thelp.get_sound_labels(rec)
 
