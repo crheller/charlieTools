@@ -1,6 +1,7 @@
 """
 data loading utilities for TBP data
 """
+import charlieTools.preprocessing as cpreproc
 import nems_lbhb.preprocessing as preproc
 from nems_lbhb.baphy_experiment import BAPHYExperiment
 import nems_lbhb.tin_helpers as thelp
@@ -8,12 +9,14 @@ import numpy as np
 import pickle
 
 def load_tbp_for_decoding(site, batch, mask, fs=10, wins=0.1, wine=0.4, collapse=True, 
-                    recache=False, balance=False, pupexclude=False):
+                    recache=False, balance=False, pupexclude=False, regresspupil=False):
     """
     mask is list of epoch categories (e.g. HIT_TRIAL) to include in the returned data
 
     balance: If true, on a per stimulus basis, make sure there are equal number of 
         active and passive trials (using random subsampling of larger category)
+
+    regresspupil: If true, use linear regression to remove anything that can be explained with first order pupil
 
     pupexclude: If true and mask=["PASSIVE_EXPERIMENT"], exclude trials where pupil size does
         not match active distribution of pupil size.
@@ -26,6 +29,10 @@ def load_tbp_for_decoding(site, batch, mask, fs=10, wins=0.1, wine=0.4, collapse
     manager = BAPHYExperiment(batch=batch, cellid=site, rawid=None)
     rec = manager.get_recording(recache=recache, **options)
     rec['resp'] = rec['resp'].rasterize()
+    if regresspupil:
+        rec = cpreproc.regress_state(rec, 
+                        state_sigs=['pupil'],
+                        regress=['pupil'])
     rec = rec.create_mask(True)
     rec = rec.and_mask(mask)
     if pupexclude & ("PASSIVE_EXPERIMENT" in mask):
