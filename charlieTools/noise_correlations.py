@@ -5,7 +5,7 @@ import scipy.signal as ssig
 import pandas as pd
 from itertools import permutations, combinations
 import scipy
-import nems.epoch as ep
+import nems0.epoch as ep
 import scipy.fftpack as sfp
 import charlieTools.preprocessing as preproc
 
